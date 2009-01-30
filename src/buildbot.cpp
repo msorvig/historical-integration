@@ -101,6 +101,7 @@ bool QtDepotSource::p4sync(int change)
 void QtDepotSource::gitCheckout(const QString &sha1)
 {
     QString arguments = "checkout " + sha1;
+    qDebug() << this->path << arguments;
     qDebug() << pipeExecutable(this->path, "git", arguments.split(" "));
 }
 
@@ -335,13 +336,14 @@ bool incrementalBuildQtAt(QString change, QString buildDir)
 
 void buildHistorical(HistoricalBuildOptions options)
 {
-    QString basePath = options.basePath;
-    QString stagePath = options.stagePath;
-    QString sourcePath = options.sourcePath;
+    basePath = options.basePath;
+    stagePath = options.stagePath;
+    sourcePath = options.sourcePath;
     bool storeFullCopy = options.storeFullCopy;
     dryRun = options.dryRun;
 
     int listIndex = 0;
+    qDebug() << "finding commits in" << sourcePath;
     QList<QByteArray> commits = findCommits(sourcePath);
 
     for (int listIndex = 0; listIndex < options.commitCount; ++listIndex) {

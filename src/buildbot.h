@@ -9,6 +9,7 @@ struct ProcessResult{
 };
 
 ProcessResult runProcess(const QString &executable, const QStringList &arguments, const QString workingDir = QString());
+QList<QByteArray> findCommits(const QString &path);
 
 class QtSource
 {
@@ -72,3 +73,43 @@ public:
 };
 
 void buildHistorical(HistoricalBuildOptions options);
+
+class Visitor
+{
+public:
+    virtual ~Visitor() {};
+    enum VisitResponse { Pass, Fail, Skip };
+    virtual VisitResponse visit(const QString &) { return Pass; };
+    virtual QString firstSha1() = 0;
+    virtual QString nextSha1() = 0;
+
+    bool isBuilt(const QString &sha1);
+    void stage(const QString &sha1);
+
+    void performVisit(const QList<QByteArray> &commits);
+
+    QList<QByteArray> m_commits;
+    QList<QByteArray> m_skipped;
+};
+
+class LinearSearchVisitor : public Visitor
+{
+public:
+    QString firstSha1()
+    {
+        index = 0;
+        return m_commits.at(index);
+    }
+
+    QString nextSha1()
+    {
+        ++index;
+        if (index > m_commits.count())
+            return QString();
+        return m_commits.at(index);
+    }
+
+    int index;
+};
+
+

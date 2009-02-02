@@ -474,4 +474,31 @@ void storeAndLinkBuild(const QString &storagePath, const QString &buildPath, con
     }
 }
 
+void Visitor::performVisit(const QList<QByteArray> &commits)
+{
+    m_commits = commits;
+    QString sha1 = firstSha1();
+    bool stop = (visit(sha1) == Fail);
+    while (!stop) {
+        sha1 = nextSha1();
+        if (sha1.isEmpty())
+            break;
+        stop = (visit(sha1) == Fail);
+    }
+}
+
+bool Visitor::isBuilt(const QString &sha1)
+{
+    return QDir(basePath + "/" + sha1).exists();
+}
+
+void Visitor::stage(const QString &sha1)
+{
+    QString stagePath2 = stagePath;
+    stagePath2.chop(1);
+
+    rmrf(stagePath2);
+    symLink(basePath + "/" + sha1, stagePath);
+}
+
 

@@ -164,7 +164,7 @@ void QtBuild::removeBuild()
     const QString toDelete = buildPath;
 
     qDebug() << "deleting" << toDelete;
-    sleep(4);
+    //sleep(4);
 
     runProcess("/bin/rm", QStringList() << "-rf" << toDelete, buildPath);
 

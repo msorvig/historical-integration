@@ -65,6 +65,7 @@ class VCSClient
 public:
     virtual ProcessResult sync() = 0;
     virtual QStringList revisions() = 0;
+    virtual ProcessResult syncToRevision(const QString &revision) = 0;
 };
 
 class GitClient : public VCSClient
@@ -73,11 +74,20 @@ public:
     GitClient (const QString &sourceUrl);
     ProcessResult sync();
     QStringList revisions();
+    ProcessResult syncToRevision(const QString &revision);
+    QString projectPath() { return m_projectPath; }
 private:
     QString m_sourceUrl;
     QString m_projectName;
     QString m_projectPath;
     QStringList m_revisions;
+};
+
+class ProjectBuilder
+{
+public:
+    ~ProjectBuilder();
+    virtual ProcessResult buildProject(const QString &sourcePath, const QString &buildPath);
 };
 
 class ProjectHistoryBuilder
@@ -97,9 +107,11 @@ public:
     QString projectRoot;
 
     GitClient *vcsClient; // git-only for now.
+    ProjectBuilder *projectBuilder;
 
     void build();
 private:
+    void buildHistory();
     QStringList revisions;
 };
 

@@ -56,10 +56,10 @@ ProcessResult gitCommits(const QString &path)
     return pipeExecutable(path, "git", arguments.split(" "));
 }
 
-void gitCeckout(const QString &path, const QString &sha1)
+ProcessResult gitCeckout(const QString &path, const QString &sha1)
 {
     QString arguments = "checkout " + sha1;
-    pipeExecutable(path, "git", arguments.split(" "));
+    return pipeExecutable(path, "git", arguments.split(" "));
 }
 
 ProcessResult gitClone(const QString destinationPath, const QString &sourceUrl)
@@ -247,7 +247,13 @@ void move(const QString &source, const QString &target)
 
 void rmrf(const QString &target)
 {
+    if (target.isEmpty())
+        return;
+#ifdef Q_OS_WIN
+    pipeExecutable("", "c:/Programfiler/git/bin/rm.exe", QStringList() << "-rf" << target); // ### program files, req Git
+#else
     pipeExecutable("", "/bin/rm", QStringList() << "-rf" << target);
+#endif
 }
 
 void copyPreserveDate(const QString &source, const QString &target)
@@ -338,6 +344,7 @@ bool incrementalBuildQtAt(QString change, QString buildDir)
 {
     QDir buildPath(buildDir);
 
+
     if (buildPath.exists() == false)
         buildPath.mkpath("dummy");
 
@@ -362,37 +369,47 @@ bool incrementalBuildQtAt(QString change, QString buildDir)
     return true;
 }
 
-/*
-void buildHistorical(HistoricalBuildOptions options)
+void ProjectHistoryBuilder::buildHistory()
 {
-    basePath = options.basePath;
-    stagePath = options.stagePath;
-    sourcePath = options.sourcePath;
-    bool storeFullCopy = options.storeFullCopy;
-    dryRun = options.dryRun;
+    QString basePath = QDir::currentPath();
+    QString stagePath = basePath +"/stage";
+    QString tempStorePath = basePath + "/tempstore";
 
-    int listIndex = 0;
-    qDebug() << "finding commits in" << sourcePath;
-    QList<QByteArray> commits = findCommits(sourcePath);
 
-    for (int listIndex = 0; listIndex < options.commitCount; ++listIndex) {
-        QByteArray change = commits.at(listIndex);
-        QString buildStorePath(basePath + "/" + change);
-        QString previousStorePath = (listIndex > 0) ? (basePath + "/" + commits.at(listIndex - 1)) : QString();
-        QString tempStorePath = basePath + "/tempstore";
+    bool storeFullCopy = true;
+    dryRun = false;
+
+    int maxIndex = revisions.count();
+
+    for (int listIndex = 0; listIndex < maxIndex; ++listIndex) {
+        QString revision = revisions.at(listIndex);
+        qDebug () << "building revision"  << revision;
+
+
+        QString buildStorePath(basePath + "/" + revision);
+        QString previousStorePath = (listIndex > 0) ? (basePath + "/" + revisions.at(listIndex - 1)) : QString();
 
         if (QDir(buildStorePath).exists()) {
-            qDebug() << "Already exists:" << change << "skipping";
+            qDebug() << "Already exists:" << revision << "skipping";
             continue;
         }
 
         rmrf(tempStorePath);
         QDir().mkpath(tempStorePath);
 
-       qDebug() << "rebuild at" << listIndex << commits.at(listIndex);
+       //qDebug() << "rebuild at" << listIndex << commits.at(listIndex);
        if (!dryRun) {
+            ProcessResult result = vcsClient->syncToRevision(revision);
+            if (result.success == false) {
+                qDebug() << "vcs sync to revision" << revision << "failed";
+                qDebug() << result.output;
+            }
+
             // A sucessfull build passes through three locations. It is first
-            // incrementally built in stagePath.
+            // (incrementally) built in stagePath.
+            projectBuilder->buildProject(vcsClient->projectPath(), stagePath);
+        /*
+
             if (incrementalBuildQtAt(change, stagePath)) {
 
                 // Then, the build output files are either copied or hard
@@ -406,10 +423,11 @@ void buildHistorical(HistoricalBuildOptions options)
                 qDebug() << "build failed";
                 // mark as failed?
             }
+*/
         }
     }
 }
-*/
+
 /*
     compares two files as cheaply as possible.
 */
@@ -516,10 +534,18 @@ GitClient::GitClient(const QString &sourceUrl)
 
 ProcessResult GitClient::sync()
 {
-    if (QDir().exists(m_projectName))
-        return gitPull(m_projectPath);
-    else
+    if (QDir().exists(m_projectName)) {
+        ProcessResult result = gitPull(m_projectPath);
+        if (result.success == false) {
+            if (result.output.contains("You asked me to pull without telling me which branch")) {
+                qDebug() << m_projectPath;
+                rmrf(m_projectPath);
+                return gitClone(QDir::currentPath(), m_sourceUrl);
+            }
+        }
+    } else {
         return gitClone(QDir::currentPath(), m_sourceUrl);
+    }
 }
 
 QStringList GitClient::revisions()
@@ -539,6 +565,18 @@ QStringList GitClient::revisions()
     return m_revisions;
 }
 
+ProcessResult GitClient::syncToRevision(const QString &revision)
+{
+    return gitCeckout(m_projectPath, revision);
+}
+
+ProcessResult ProjectBuilder::buildProject(const QString &sourcePath, const QString &buildPath)
+{
+    qDebug() << "building source" << sourcePath << "at" << buildPath;
+    ProcessResult result;
+    result.success = true;
+    return result;
+}
 
 ProjectHistoryBuilder::ProjectHistoryBuilder()
 {
@@ -548,6 +586,7 @@ ProjectHistoryBuilder::ProjectHistoryBuilder()
 void ProjectHistoryBuilder::build()
 {
     vcsClient = new GitClient(this->sourceUrl);
+    projectBuilder = new ProjectBuilder;
     qDebug() << "syncing project" << sourceUrl;
     ProcessResult result = vcsClient->sync();
     if (result.success == false) {
@@ -561,6 +600,7 @@ void ProjectHistoryBuilder::build()
         return;
     }
     qDebug() << "found" <<  revisions.count() << "revisions";
+    buildHistory();
 }
 
 void Visitor::performVisit(const QList<QByteArray> &commits)
@@ -569,7 +609,8 @@ void Visitor::performVisit(const QList<QByteArray> &commits)
     QString sha1 = firstSha1();
     bool stop = (visit(sha1) == Fail);
     while (!stop) {
-        sha1 = nextSha1();
+        sha1 = nextSha1(
+);
         if (sha1.isEmpty())
             break;
         stop = (visit(sha1) == Fail);

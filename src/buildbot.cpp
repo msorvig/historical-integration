@@ -25,7 +25,7 @@ ProcessResult runProcess(const QString &executable, const QStringList &arguments
     return ProcessResult(process.exitCode() == 0, process.readAll());
 }
 
-QByteArray pipeExecutable(const QString &workdir, const QString &executable, const QStringList &arguments)
+ProcessResult pipeExecutable(const QString &workdir, const QString &executable, const QStringList &arguments)
 {
     QProcess p;
     p.setProcessChannelMode(QProcess::MergedChannels);
@@ -35,7 +35,12 @@ QByteArray pipeExecutable(const QString &workdir, const QString &executable, con
     if (p.waitForFinished(-1) == false) {
         qDebug() << "run" << executable << "failed" << p.error();
     }
-    return p.readAll();
+
+    ProcessResult result;
+    result.output = p.readAll();
+    if (p.exitCode() != 0)
+        result.success = false;
+    return result;
 }
 
 void writeFile(const QString &fileName, const QByteArray &contents)
@@ -45,7 +50,7 @@ void writeFile(const QString &fileName, const QByteArray &contents)
     f.write(contents);
 }
 
-QByteArray gitCommits(const QString &path)
+ProcessResult gitCommits(const QString &path)
 {
     const QString arguments =  "--no-pager log --pretty=oneline";
     return pipeExecutable(path, "git", arguments.split(" "));
@@ -57,10 +62,33 @@ void gitCeckout(const QString &path, const QString &sha1)
     pipeExecutable(path, "git", arguments.split(" "));
 }
 
+ProcessResult gitClone(const QString destinationPath, const QString &sourceUrl)
+{
+    QString arguments = "clone " + sourceUrl;
+    return pipeExecutable(destinationPath, "git", arguments.split(" "));
+}
+
+ProcessResult gitPull(const QString path)
+{
+    QString arguments = "pull";
+
+    ProcessResult result = pipeExecutable(path, "git", arguments.split(" "));
+    if (result.output.contains("Already up-to-date")) // Git reports this as an error,
+        result.success = true;                        // but this is really a normal condition.
+    return result;
+}
+
+ProcessResult gitStatus(const QString path, const QString &sourceUrl)
+{
+    QString arguments = "status";
+    return pipeExecutable(path, "git", arguments.split(" "));
+}
+
+
 QList<QByteArray> findCommits(const QString &path)
 {
     QList<QByteArray> commits;
-    QByteArray rawChanges = gitCommits(path);
+    QByteArray rawChanges = gitCommits(path).output;
     gitCeckout(path, "master"); // ### assumes Qt mainline
     qDebug() << "searching for changes in" << path;
     foreach (QByteArray line, rawChanges.split('\n')) {
@@ -102,7 +130,7 @@ void QtDepotSource::gitCheckout(const QString &sha1)
 {
     QString arguments = "checkout " + sha1;
     qDebug() << this->path << arguments;
-    qDebug() << pipeExecutable(this->path, "git", arguments.split(" "));
+    qDebug() << pipeExecutable(this->path, "git", arguments.split(" ")).output;
 }
 
 ////////////////////////
@@ -334,6 +362,7 @@ bool incrementalBuildQtAt(QString change, QString buildDir)
     return true;
 }
 
+/*
 void buildHistorical(HistoricalBuildOptions options)
 {
     basePath = options.basePath;
@@ -380,7 +409,7 @@ void buildHistorical(HistoricalBuildOptions options)
         }
     }
 }
-
+*/
 /*
     compares two files as cheaply as possible.
 */
@@ -472,6 +501,66 @@ void storeAndLinkBuild(const QString &storagePath, const QString &buildPath, con
             copyPreserveDate(sourceFilePath, storageFilePath);
         }
     }
+}
+
+GitClient::GitClient(const QString &sourceUrl)
+{
+    m_sourceUrl = sourceUrl;
+    QStringList parts = sourceUrl.split('/');
+    m_projectName = parts.at(parts.count() - 1);
+    m_projectName.chop(4); // remove ".git";
+    m_projectPath = QDir::currentPath() + "/" + m_projectName;
+
+//    qDebug() << m_projectName;
+}
+
+ProcessResult GitClient::sync()
+{
+    if (QDir().exists(m_projectName))
+        return gitPull(m_projectPath);
+    else
+        return gitClone(QDir::currentPath(), m_sourceUrl);
+}
+
+QStringList GitClient::revisions()
+{
+    if (m_revisions.isEmpty()) {
+        ProcessResult result = gitCommits(m_projectPath);
+        if (result.success) {
+            foreach (QByteArray line, result.output.split('\n')) {
+                QByteArray revision = line.split(' ').at(0);
+                if (revision.isEmpty() == false)
+                    m_revisions += revision;
+            }
+        } else {
+            qDebug() << result.output;
+        }
+    }
+    return m_revisions;
+}
+
+
+ProjectHistoryBuilder::ProjectHistoryBuilder()
+{
+    this->workPath = QDir::currentPath() + "history";
+}
+
+void ProjectHistoryBuilder::build()
+{
+    vcsClient = new GitClient(this->sourceUrl);
+    qDebug() << "syncing project" << sourceUrl;
+    ProcessResult result = vcsClient->sync();
+    if (result.success == false) {
+        qDebug() << "Git sync error" << result.output;
+        return;
+    }
+    qDebug() << "finding project revisions";
+    revisions = vcsClient->revisions();
+    if (revisions.isEmpty()) {
+        qDebug() << "no revisions found";
+        return;
+    }
+    qDebug() << "found" <<  revisions.count() << "revisions";
 }
 
 void Visitor::performVisit(const QList<QByteArray> &commits)

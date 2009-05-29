@@ -60,19 +60,52 @@ public:
     static QStringList nonessentialFiles;
 };
 
-
-class HistoricalBuildOptions
+class VCSClient
 {
 public:
-    QString basePath;
-    QString stagePath;
-    QString sourcePath;
+    virtual ProcessResult sync() = 0;
+    virtual QStringList revisions() = 0;
+};
+
+class GitClient : public VCSClient
+{
+public:
+    GitClient (const QString &sourceUrl);
+    ProcessResult sync();
+    QStringList revisions();
+private:
+    QString m_sourceUrl;
+    QString m_projectName;
+    QString m_projectPath;
+    QStringList m_revisions;
+};
+
+class ProjectHistoryBuilder
+{
+public:
+    ProjectHistoryBuilder();
+    QString workPath;
+    QString sourceUrl;
+
     bool storeFullCopy;
     int commitCount;
     bool dryRun;
+
+    enum ProjectType { QmakeBased, Qt };
+    ProjectType projectType;
+
+    QString projectRoot;
+
+    GitClient *vcsClient; // git-only for now.
+
+    void build();
+private:
+    QStringList revisions;
 };
 
-void buildHistorical(HistoricalBuildOptions options);
+
+
+//void buildHistorical(HistoricalBuildOptions options);
 
 class Visitor
 {

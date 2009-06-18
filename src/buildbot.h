@@ -90,6 +90,12 @@ public:
     virtual ProcessResult buildProject(const QString &sourcePath, const QString &buildPath);
 };
 
+class QmakeProjectBuilder
+{
+public:
+    virtual ProcessResult buildProject(const QString &sourcePath, const QString &buildPath);
+};
+
 class ProjectHistoryBuilder
 {
 public:

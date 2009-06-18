@@ -1,8 +1,10 @@
 #include <buildbot.h>
-#include <QtCore>
+#include <QtGui>
 
-int main(int arc, char **argv)
+int main(int argc, char **argv)
 {
+    QApplication app(argc, argv);
+
     ProjectHistoryBuilder builder;
     builder.sourceUrl = "git@scm.dev.troll.no:personal/msorvigs-qspellchecker.git";
     builder.build();

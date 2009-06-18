@@ -1,4 +1,140 @@
 #include "buildbot.h"
+#include <QtSql>
+#include <QtGui>
+
+// -----------
+
+QString buildsTable = QString("(Revision varchar, Status varchar)");
+
+void execQuery(QSqlQuery query, bool warnOnFail)
+{
+    bool ok = query.exec();
+    if (!ok && warnOnFail) {
+        qDebug() << "sql query exec failure:" << query.lastQuery() << query.lastError().text();
+    }
+}
+
+QSqlQuery execQuery(const QString &spec, bool warnOnFail = false);
+QSqlQuery execQuery(const QString &spec, bool warnOnFail)
+{
+    QSqlQuery query;
+    bool ok = query.prepare(spec);
+    if (!ok && warnOnFail) {
+        qDebug()  << "sql query prepare failure: " << query.lastError();
+        qDebug()  << "sql query is: " << query.lastQuery();
+    }
+    execQuery(query, warnOnFail);
+    return query;
+}
+
+
+void createTables()
+{
+    execQuery("PRAGMA encoding = \"UTF-8\";", true);
+    execQuery("DROP TABLE Builds", false);
+    execQuery("CREATE TABLE Builds" + buildsTable);
+//    execQuery("CREATE INDEX testcasetestfunction_index ON Results (TestCase, Testfunction)");
+}
+
+
+/*
+    Opens a sqlite database, preserves data.
+    Creates a new datatbase if the current one
+    does not exist.
+*/
+
+bool isOpen = false;
+QSqlDatabase openDatabase(const QString &databaseFile)
+{
+    if (isOpen)
+        return QSqlDatabase::database();
+    isOpen = true;
+
+
+    qDebug() << "open database";
+    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+    bool create  = false;
+    if (QFile(databaseFile).exists() == false) {
+        create = true;
+    }
+
+    db.setDatabaseName(databaseFile);
+    bool ok = db.open();
+    if (!ok)
+        qDebug() << "FAIL: could not open database";
+
+    if (create)
+        createTables();
+
+    return db;
+}
+
+void closeDatabase()
+{
+    qDebug() << "close database";
+    isOpen = false;
+    QSqlDatabase::database().close();
+    QSqlDatabase::removeDatabase("qt_sql_default_connection");
+}
+
+/*
+    Creates a sqlite database, erases data
+*/
+QSqlDatabase createDatabase(const QString &databaseFile)
+{
+    qDebug() << "create data base";
+    QSqlDatabase db = openDatabase(databaseFile);
+    createTables();
+
+    return db;
+}
+
+void setBuildStatus(const QString &revision, const QString &status)
+{
+    qDebug() << "setBuildStatus" << revision << status;
+
+    QSqlQuery query;
+
+    query.prepare("INSERT INTO Builds (Revision, Status) VALUES (:Revision, :Status)");
+
+    query.bindValue(":Revision", revision);
+    query.bindValue(":Status", status);
+    execQuery(query, true);
+}
+
+QString getBuildStatus(const QString &revision)
+{
+    QSqlQuery query;
+    query.prepare("SELECT Status FROM Builds WHERE Revision='" + revision + "'");
+    bool ok = query.exec();
+    if (!ok) {
+        qDebug() << "sql query exec failure:" << query.lastQuery() << query.lastError().text();
+    }
+
+    if (query.isActive()) {
+        query.next();
+        return query.value(0).toString();
+    }
+    return QByteArray();
+}
+
+
+void displayDatabaseTable(const QString &table)
+{
+    QSqlTableModel *model = new QSqlTableModel();
+    model->setTable(table);
+    model->select();
+    QTableView *view = new QTableView();
+    view->setModel(model);
+    view->resize(1000, 600);
+    view->show();
+    view->raise();
+
+    QEventLoop loop;
+    loop.exec();
+}
+
+//-------------
 
 // global options
 QString basePath;
@@ -236,13 +372,21 @@ void symLink(const QString &target,  QString link)
  //   qDebug() << "symlink" << target << link;
     if (link.endsWith('/'))
         link.chop(1);
+#ifdef Q_OS_WIN
+    pipeExecutable("", "c:/Programfiler/git/bin/ln.exe", QStringList() << "-s" << target << link); // ### program files, req Git
+#else
     pipeExecutable("", "/bin/ln", QStringList() << "-s" << target << link);
+#endif
 }
 
 
 void move(const QString &source, const QString &target)
 {
+#ifdef Q_OS_WIN
+    pipeExecutable("", "c:/Programfiler/git/bin/mv.exe", QStringList() << source << target); // ### program files, req Git
+#else
     pipeExecutable("", "/bin/mv", QStringList() << source << target);
+#endif
 }
 
 void rmrf(const QString &target)
@@ -383,13 +527,14 @@ void ProjectHistoryBuilder::buildHistory()
 
     for (int listIndex = 0; listIndex < maxIndex; ++listIndex) {
         QString revision = revisions.at(listIndex);
-        qDebug () << "building revision"  << revision;
+        QString status = getBuildStatus(revision);
+        qDebug () << "at revision"  << revision << "status" << status;
 
 
         QString buildStorePath(basePath + "/" + revision);
         QString previousStorePath = (listIndex > 0) ? (basePath + "/" + revisions.at(listIndex - 1)) : QString();
 
-        if (QDir(buildStorePath).exists()) {
+        if (status == "OK") {
             qDebug() << "Already exists:" << revision << "skipping";
             continue;
         }
@@ -399,6 +544,8 @@ void ProjectHistoryBuilder::buildHistory()
 
        //qDebug() << "rebuild at" << listIndex << commits.at(listIndex);
        if (!dryRun) {
+
+            // sync the project to the current revsion.
             ProcessResult result = vcsClient->syncToRevision(revision);
             if (result.success == false) {
                 qDebug() << "vcs sync to revision" << revision << "failed";
@@ -407,11 +554,10 @@ void ProjectHistoryBuilder::buildHistory()
 
             // A sucessfull build passes through three locations. It is first
             // (incrementally) built in stagePath.
-            projectBuilder->buildProject(vcsClient->projectPath(), stagePath);
-        /*
 
-            if (incrementalBuildQtAt(change, stagePath)) {
-
+            const QString projectRootPath = vcsClient->projectPath() + "/" + projectRoot;
+            result = projectBuilder->buildProject(projectRootPath, stagePath);
+            if (result.success) {
                 // Then, the build output files are either copied or hard
                 // linked from a previous build into tempStorePath.
                 storeAndLinkBuild(tempStorePath, stagePath, previousStorePath);
@@ -419,11 +565,11 @@ void ProjectHistoryBuilder::buildHistory()
                 // Finally tempStorePath is renamed to buildStorePath,
                 // this path name contains the commit sha1 for the build.
                 move(tempStorePath, buildStorePath);
+                setBuildStatus(revision, "OK");
             } else {
-                qDebug() << "build failed";
-                // mark as failed?
+                setBuildStatus(revision, "FAIL");
+                qDebug() << "build failed.";
             }
-*/
         }
     }
 }
@@ -538,14 +684,14 @@ ProcessResult GitClient::sync()
         ProcessResult result = gitPull(m_projectPath);
         if (result.success == false) {
             if (result.output.contains("You asked me to pull without telling me which branch")) {
-                qDebug() << m_projectPath;
+                // The source tree is busted, delete and pull again.
                 rmrf(m_projectPath);
                 return gitClone(QDir::currentPath(), m_sourceUrl);
             }
         }
-    } else {
-        return gitClone(QDir::currentPath(), m_sourceUrl);
+        return result;
     }
+    return gitClone(QDir::currentPath(), m_sourceUrl);
 }
 
 QStringList GitClient::revisions()
@@ -578,6 +724,17 @@ ProcessResult ProjectBuilder::buildProject(const QString &sourcePath, const QStr
     return result;
 }
 
+ProcessResult QmakeProjectBuilder(const QString &sourcePath, const QString &buildPath)
+{
+   // qDebug() << "building source" << sourcePath << "at" << buildPath;
+
+
+    ProcessResult result;
+    result.success = false;
+    return result;
+}
+
+
 ProjectHistoryBuilder::ProjectHistoryBuilder()
 {
     this->workPath = QDir::currentPath() + "history";
@@ -585,6 +742,9 @@ ProjectHistoryBuilder::ProjectHistoryBuilder()
 
 void ProjectHistoryBuilder::build()
 {
+    openDatabase("database");
+//    displayDatabaseTable("Builds");
+
     vcsClient = new GitClient(this->sourceUrl);
     projectBuilder = new ProjectBuilder;
     qDebug() << "syncing project" << sourceUrl;

@@ -1,123 +1,9 @@
 #include "buildbot.h"
 #include <QtSql>
 #include <QtGui>
+#include "singletabledatabase.h"
 
 // -----------
-
-QString buildsTable = QString("(Revision varchar, Status varchar)");
-
-void execQuery(QSqlQuery query, bool warnOnFail)
-{
-    bool ok = query.exec();
-    if (!ok && warnOnFail) {
-        qDebug() << "sql query exec failure:" << query.lastQuery() << query.lastError().text();
-    }
-}
-
-QSqlQuery execQuery(const QString &spec, bool warnOnFail = false);
-QSqlQuery execQuery(const QString &spec, bool warnOnFail)
-{
-    QSqlQuery query;
-    bool ok = query.prepare(spec);
-    if (!ok && warnOnFail) {
-        qDebug()  << "sql query prepare failure: " << query.lastError();
-        qDebug()  << "sql query is: " << query.lastQuery();
-    }
-    execQuery(query, warnOnFail);
-    return query;
-}
-
-
-void createTables()
-{
-    execQuery("PRAGMA encoding = \"UTF-8\";", true);
-    execQuery("DROP TABLE Builds", false);
-    execQuery("CREATE TABLE Builds" + buildsTable);
-//    execQuery("CREATE INDEX testcasetestfunction_index ON Results (TestCase, Testfunction)");
-}
-
-
-/*
-    Opens a sqlite database, preserves data.
-    Creates a new datatbase if the current one
-    does not exist.
-*/
-
-bool isOpen = false;
-QSqlDatabase openDatabase(const QString &databaseFile)
-{
-    if (isOpen)
-        return QSqlDatabase::database();
-    isOpen = true;
-
-
-    qDebug() << "open database";
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
-    bool create  = false;
-    if (QFile(databaseFile).exists() == false) {
-        create = true;
-    }
-
-    db.setDatabaseName(databaseFile);
-    bool ok = db.open();
-    if (!ok)
-        qDebug() << "FAIL: could not open database";
-
-    if (create)
-        createTables();
-
-    return db;
-}
-
-void closeDatabase()
-{
-    qDebug() << "close database";
-    isOpen = false;
-    QSqlDatabase::database().close();
-    QSqlDatabase::removeDatabase("qt_sql_default_connection");
-}
-
-/*
-    Creates a sqlite database, erases data
-*/
-QSqlDatabase createDatabase(const QString &databaseFile)
-{
-    qDebug() << "create data base";
-    QSqlDatabase db = openDatabase(databaseFile);
-    createTables();
-
-    return db;
-}
-
-void setBuildStatus(const QString &revision, const QString &status)
-{
-    qDebug() << "setBuildStatus" << revision << status;
-
-    QSqlQuery query;
-
-    query.prepare("INSERT INTO Builds (Revision, Status) VALUES (:Revision, :Status)");
-
-    query.bindValue(":Revision", revision);
-    query.bindValue(":Status", status);
-    execQuery(query, true);
-}
-
-QString getBuildStatus(const QString &revision)
-{
-    QSqlQuery query;
-    query.prepare("SELECT Status FROM Builds WHERE Revision='" + revision + "'");
-    bool ok = query.exec();
-    if (!ok) {
-        qDebug() << "sql query exec failure:" << query.lastQuery() << query.lastError().text();
-    }
-
-    if (query.isActive()) {
-        query.next();
-        return query.value(0).toString();
-    }
-    return QByteArray();
-}
-
 
 void displayDatabaseTable(const QString &table)
 {
@@ -141,7 +27,6 @@ QString basePath;
 QString stagePath;
 QString sourcePath;
 bool storeFullCopy;
-bool dryRun;
 
 // forwards
 void storeAndLinkBuild(const QString &storagePath, const QString &buildPath, const QString &previousStoragePath);
@@ -150,6 +35,27 @@ void storeAndLinkBuild(const QString &storagePath, const QString &buildPath, con
 ProcessResult runProcess(const QString &executable, const QStringList &arguments, const QString workingDir)
 {
     QProcess process;
+#ifdef Q_OS_WIN
+    // ### less hardcoding.
+    QStringList env = QProcess::systemEnvironment();
+    env.replaceInStrings(QRegExp("^PATH=(.*)", Qt::CaseInsensitive),
+                         "PATH=\\1;"
+                         "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\bin;"
+                         "C:\\Program Files\\Microsoft Visual Studio 8\\Common7\\IDE;"
+                         "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\BIN;"
+                         "C:\\Program Files\\Microsoft Visual Studio 8\\Common7\\Tools;"
+                         "C:\\Program Files\\Microsoft Visual Studio 8\\SDK\\v2.0\\bin"
+                         "C:\\WINDOWS\\Microsoft.NET\\Framework\\v2.0.50727;"
+                         "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\VCPackages"
+                         "C:\\Program Files\\Microsoft Platform SDK\\Bin;"
+                         "C:\\Program Files\\Microsoft Platform SDK\\Bin\\WinNT");
+    env << "Include=C:\\Program Files\\Microsoft Visual Studio 8\\VC\\INCLUDE;"
+           "C:\\Program Files\\Microsoft Platform SDK\\Include;";
+    env << "Lib=C:\\Program Files\\Microsoft Visual Studio 8\\VC\\LIB;"
+           "C:\\Program Files\\Microsoft Visual Studio 8\\SDK\\v2.0\\lib;"
+           "C:\\Program Files\\Microsoft Platform SDK\\Lib;";
+    process.setEnvironment(env);
+#endif
     process.setReadChannelMode(QProcess::MergedChannels);
 
     if (workingDir != QString())
@@ -157,27 +63,10 @@ ProcessResult runProcess(const QString &executable, const QStringList &arguments
 
     process.start(executable, arguments);
     process.waitForFinished(-1);
-    
+
     return ProcessResult(process.exitCode() == 0, process.readAll());
 }
 
-ProcessResult pipeExecutable(const QString &workdir, const QString &executable, const QStringList &arguments)
-{
-    QProcess p;
-    p.setProcessChannelMode(QProcess::MergedChannels);
-    if (workdir != QString())
-        p.setWorkingDirectory(workdir);
-    p.start(executable, arguments);
-    if (p.waitForFinished(-1) == false) {
-        qDebug() << "run" << executable << "failed" << p.error();
-    }
-
-    ProcessResult result;
-    result.output = p.readAll();
-    if (p.exitCode() != 0)
-        result.success = false;
-    return result;
-}
 
 void writeFile(const QString &fileName, const QByteArray &contents)
 {
@@ -186,52 +75,6 @@ void writeFile(const QString &fileName, const QByteArray &contents)
     f.write(contents);
 }
 
-ProcessResult gitCommits(const QString &path)
-{
-    const QString arguments =  "--no-pager log --pretty=oneline";
-    return pipeExecutable(path, "git", arguments.split(" "));
-}
-
-ProcessResult gitCeckout(const QString &path, const QString &sha1)
-{
-    QString arguments = "checkout " + sha1;
-    return pipeExecutable(path, "git", arguments.split(" "));
-}
-
-ProcessResult gitClone(const QString destinationPath, const QString &sourceUrl)
-{
-    QString arguments = "clone " + sourceUrl;
-    return pipeExecutable(destinationPath, "git", arguments.split(" "));
-}
-
-ProcessResult gitPull(const QString path)
-{
-    QString arguments = "pull";
-
-    ProcessResult result = pipeExecutable(path, "git", arguments.split(" "));
-    if (result.output.contains("Already up-to-date")) // Git reports this as an error,
-        result.success = true;                        // but this is really a normal condition.
-    return result;
-}
-
-ProcessResult gitStatus(const QString path, const QString &sourceUrl)
-{
-    QString arguments = "status";
-    return pipeExecutable(path, "git", arguments.split(" "));
-}
-
-
-QList<QByteArray> findCommits(const QString &path)
-{
-    QList<QByteArray> commits;
-    QByteArray rawChanges = gitCommits(path).output;
-    gitCeckout(path, "master"); // ### assumes Qt mainline
-    qDebug() << "searching for changes in" << path;
-    foreach (QByteArray line, rawChanges.split('\n')) {
-        commits += line.split(' ').at(0);
-    }
-    return commits;
-}
 
 
 
@@ -239,7 +82,7 @@ QtDepotSource::QtDepotSource(QString depotPath, QString version)
 :QtSource(depotPath, version)
 {
 
-}    
+}
 
 bool QtDepotSource::p4sync(QDateTime date)
 {
@@ -291,13 +134,13 @@ QStringList QtBuild::supportedConfigureOptions()
         const QString opt = rx.cap(1);
 
         // Leave out certain options (they require a parameter, or are special).
-        if ( (opt.contains("string") == false) && (opt.contains("pch") == false) 
+        if ( (opt.contains("string") == false) && (opt.contains("pch") == false)
          && (opt.contains("release") == false) && (opt.contains("debug") == false)) {
-            list << opt; 
+            list << opt;
         }
         pos += rx.matchedLength();
     }
-        
+
     return list;
 }
 
@@ -319,7 +162,11 @@ ProcessResult QtBuild::make(const QStringList &arguments)
 
 ProcessResult QtBuild::make()
 {
+#ifdef Q_OS_WIN
+    return runProcess("C:/Program Files/Microsoft Visual Studio 8/VC/BIN/nmake.exe", makeArguments, buildPath);
+#else
     return runProcess("/usr/bin/make", makeArguments, buildPath);
+#endif
 }
 
 
@@ -351,7 +198,7 @@ void QtBuild::removeNonessentialFiles()
     QStringList args;
     args.append("-rf");
     args+=toDelete;
-    
+
     runProcess("/bin/rm", args, buildPath);
 
     QDir().mkpath(buildPath);
@@ -361,6 +208,7 @@ bool QtBuild::isValid()
 {
     return QFile::exists(source.path) && QFile::exists(buildPath);
 }
+
 
 void hardLink(const QString &target, const QString link)
 {
@@ -373,7 +221,7 @@ void symLink(const QString &target,  QString link)
     if (link.endsWith('/'))
         link.chop(1);
 #ifdef Q_OS_WIN
-    pipeExecutable("", "c:/Programfiler/git/bin/ln.exe", QStringList() << "-s" << target << link); // ### program files, req Git
+    pipeExecutable("", programFilesLocation() + "/git/bin/ln.exe", QStringList() << "-s" << target << link); // ### program files, req Git
 #else
     pipeExecutable("", "/bin/ln", QStringList() << "-s" << target << link);
 #endif
@@ -383,22 +231,14 @@ void symLink(const QString &target,  QString link)
 void move(const QString &source, const QString &target)
 {
 #ifdef Q_OS_WIN
-    pipeExecutable("", "c:/Programfiler/git/bin/mv.exe", QStringList() << source << target); // ### program files, req Git
+    qDebug() << "move" << source << "to" << target;
+    pipeExecutable("", programFilesLocation() + "/git/bin/mv.exe", QStringList() << source << target); // ### req Git
 #else
     pipeExecutable("", "/bin/mv", QStringList() << source << target);
 #endif
 }
 
-void rmrf(const QString &target)
-{
-    if (target.isEmpty())
-        return;
-#ifdef Q_OS_WIN
-    pipeExecutable("", "c:/Programfiler/git/bin/rm.exe", QStringList() << "-rf" << target); // ### program files, req Git
-#else
-    pipeExecutable("", "/bin/rm", QStringList() << "-rf" << target);
-#endif
-}
+
 
 void copyPreserveDate(const QString &source, const QString &target)
 {
@@ -412,11 +252,12 @@ void resetBuildStatus(QString buildDir)
     buildPath.rmdir("FAILED");
 }
 
-bool buildQt(QtBuild build)
+bool buildQtMac(QtBuild build)
 {
     ProcessResult result;
     qDebug() << "make sub-src";
     result = build.make(QStringList() << "sub-src");
+    qDebug() << "made" << result.output;
     if (result.success == false) {
         qDebug() << "make failed";
         qDebug() << result.output;
@@ -461,6 +302,7 @@ bool buildQt(QtBuild build)
             return false;
         }
     }
+    qDebug() << result.output;
 
     qDebug() << "make test lib";
     result = build.make(QStringList() << "-f" << "tools/qtestlib/Makefile");
@@ -476,6 +318,30 @@ bool buildQt(QtBuild build)
     return true;
 }
 
+bool buildQtWin(QtBuild build)
+{
+    ProcessResult result;
+    qDebug() << "win make sub-src";
+    result = build.make(QStringList() << "sub-src");
+    qDebug() << "made" << result.output;
+    if (result.success == false) {
+        qDebug() << "make failed";
+        qDebug() << result.output;
+        writeFile(build.buildPath + "/log", result.output);
+        return false;
+    }
+    //qDebug() << result.output;
+    return true; //
+}
+
+bool buildQt(QtBuild build)
+{
+#ifdef Q_OS_WIN
+    return buildQtWin(build);
+#elif defined(Q_OS_MAC)
+    return buildQtMac(build);
+#endif
+}
 bool syncBuild(QString change, QDir buildPath, QtDepotSource source, QtBuild build)
 {
     source.gitCheckout(change);
@@ -513,26 +379,43 @@ bool incrementalBuildQtAt(QString change, QString buildDir)
     return true;
 }
 
-void ProjectHistoryBuilder::buildHistory()
+void ProjectHistoryBuilder::buildHistory(int revisionCount)
 {
-    QString basePath = QDir::currentPath();
-    QString stagePath = basePath +"/stage";
+    const QString sourcePath = basePath  + gitClient->m_projectName;
+    QString stagePath;
+    if (useShadowBuild)
+        stagePath = basePath +"/stage";
+    else
+        stagePath = sourcePath;
     QString tempStorePath = basePath + "/tempstore";
+
+    revisions = gitClient->revisions();
+    if (revisions.isEmpty()) {
+        qDebug() << "no revisions found";
+        return;
+    }
 
 
     bool storeFullCopy = true;
-    dryRun = false;
+    Q_UNUSED(storeFullCopy);
+    //    dryRun = true;
 
-    int maxIndex = revisions.count();
+    int maxIndex = qMin(revisionCount,revisions.count());
 
     for (int listIndex = 0; listIndex < maxIndex; ++listIndex) {
+      //  QString revision = gitClient->currentRevision();
         QString revision = revisions.at(listIndex);
-        QString status = getBuildStatus(revision);
-        qDebug () << "at revision"  << revision << "status" << status;
+        QString status = buildDatabase.getBuildStatus(revision);
+        qDebug() << "";
+        qDebug() << "At revision"  << revision << "status" << status;
 
 
-        QString buildStorePath(basePath + "/" + revision);
+        QString buildStorePathBase = basePath + "/builds/";
+        QDir().mkpath(buildStorePathBase);
+        QString buildStorePath(buildStorePathBase + revision);
         QString previousStorePath = (listIndex > 0) ? (basePath + "/" + revisions.at(listIndex - 1)) : QString();
+
+        qDebug() << "buildStorePath" << buildStorePath;
 
         if (status == "OK") {
             qDebug() << "Already exists:" << revision << "skipping";
@@ -542,21 +425,19 @@ void ProjectHistoryBuilder::buildHistory()
         rmrf(tempStorePath);
         QDir().mkpath(tempStorePath);
 
-       //qDebug() << "rebuild at" << listIndex << commits.at(listIndex);
+      // qDebug() << "rebuild at" << listIndex << revisions.at(listIndex);
        if (!dryRun) {
 
-            // sync the project to the current revsion.
-            ProcessResult result = vcsClient->syncToRevision(revision);
-            if (result.success == false) {
-                qDebug() << "vcs sync to revision" << revision << "failed";
-                qDebug() << result.output;
-            }
+
 
             // A sucessfull build passes through three locations. It is first
             // (incrementally) built in stagePath.
 
-            const QString projectRootPath = vcsClient->projectPath() + "/" + projectRoot;
-            result = projectBuilder->buildProject(projectRootPath, stagePath);
+
+            qDebug() << "project root path" << sourcePath << "stage path" << stagePath;
+
+
+            ProcessResult result = projectBuilder->buildProject(sourcePath, stagePath);
             if (result.success) {
                 // Then, the build output files are either copied or hard
                 // linked from a previous build into tempStorePath.
@@ -565,13 +446,14 @@ void ProjectHistoryBuilder::buildHistory()
                 // Finally tempStorePath is renamed to buildStorePath,
                 // this path name contains the commit sha1 for the build.
                 move(tempStorePath, buildStorePath);
-                setBuildStatus(revision, "OK");
+                buildDatabase.setBuildStatus(revision, "OK", result.output);
             } else {
-                setBuildStatus(revision, "FAIL");
+                buildDatabase.setBuildStatus(revision, "FAIL", result.output);
                 qDebug() << "build failed.";
             }
         }
-    }
+       gitClient->syncBack(1);
+   } // for
 }
 
 /*
@@ -607,7 +489,48 @@ bool compareFiles(const QString &file1, const QString &file2)
     return equal;
 }
 
-void storeAndLinkBuild(const QString &storagePath, const QString &buildPath, const QString &previousStoragePath)
+void recursiveCopy(const QString &source, const QString &target)
+{
+    QDirIterator it(source, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+        it.next();
+        QString fileName = it.fileName();
+        QString relativeFilePath = it.filePath().remove(0, it.path().count());
+        QString relativePath = relativeFilePath;
+        relativePath.chop(fileName.count());
+        QString storageFilePath = target + relativeFilePath;
+      //  QString linkFilePath = relativeFilePath.isEmpty() ? QString() : previousStoragePath + "/" + relativeFilePath;
+        QString sourceFilePath = source + relativeFilePath;
+
+      //  qDebug() << "copy" << sourceFilePath << "to" << storageFilePath;
+        //QFile::copy(
+
+        /*
+        qDebug() << fileName;
+        qDebug() << relativeFilePath;
+        qDebug() << relativePath;
+        qDebug() << storageFilePath;
+        qDebug() << linkFilePath;
+*/
+    }
+}
+
+void storeAndLinkBuildWin(const QString &storagePath, const QString &buildPath, const QString &previousStoragePath)
+{
+    qDebug() << "storeAndLinkBuildWin storagePath (destination)" << storagePath;
+    qDebug() << "buildPath (source)"<< buildPath;
+    qDebug() << "previousStoragePath (prev. build)" << previousStoragePath;
+
+    // copy lib/*
+    QString libSourcePath = buildPath + "/lib";
+    QString libTargetPath = storagePath + "/lib";
+    QDir("/").mkpath(storagePath);
+    recursiveCopy(libSourcePath, libTargetPath);
+
+    // copy qmake
+}
+
+void storeAndLinkBuildMac(const QString &storagePath, const QString &buildPath, const QString &previousStoragePath)
 {
     QDirIterator it(buildPath, QDirIterator::Subdirectories);
 
@@ -667,58 +590,28 @@ void storeAndLinkBuild(const QString &storagePath, const QString &buildPath, con
     }
 }
 
-GitClient::GitClient(const QString &sourceUrl)
+void storeAndLinkBuild(const QString &storagePath, const QString &buildPath, const QString &previousStoragePath)
 {
-    m_sourceUrl = sourceUrl;
-    QStringList parts = sourceUrl.split('/');
-    m_projectName = parts.at(parts.count() - 1);
-    m_projectName.chop(4); // remove ".git";
-    m_projectPath = QDir::currentPath() + "/" + m_projectName;
-
-//    qDebug() << m_projectName;
+#ifdef Q_OS_WIN
+    storeAndLinkBuildWin(storagePath, buildPath, previousStoragePath);
+#elif defined(Q_OS_MAC)
+    storeAndLinkBuildMac(storagePath, buildPath, previousStoragePath);
+#endif
 }
 
-ProcessResult GitClient::sync()
-{
-    if (QDir().exists(m_projectName)) {
-        ProcessResult result = gitPull(m_projectPath);
-        if (result.success == false) {
-            if (result.output.contains("You asked me to pull without telling me which branch")) {
-                // The source tree is busted, delete and pull again.
-                rmrf(m_projectPath);
-                return gitClone(QDir::currentPath(), m_sourceUrl);
-            }
-        }
-        return result;
-    }
-    return gitClone(QDir::currentPath(), m_sourceUrl);
-}
 
-QStringList GitClient::revisions()
+ProjectBuilder::~ProjectBuilder()
 {
-    if (m_revisions.isEmpty()) {
-        ProcessResult result = gitCommits(m_projectPath);
-        if (result.success) {
-            foreach (QByteArray line, result.output.split('\n')) {
-                QByteArray revision = line.split(' ').at(0);
-                if (revision.isEmpty() == false)
-                    m_revisions += revision;
-            }
-        } else {
-            qDebug() << result.output;
-        }
-    }
-    return m_revisions;
-}
 
-ProcessResult GitClient::syncToRevision(const QString &revision)
-{
-    return gitCeckout(m_projectPath, revision);
 }
 
 ProcessResult ProjectBuilder::buildProject(const QString &sourcePath, const QString &buildPath)
 {
     qDebug() << "building source" << sourcePath << "at" << buildPath;
+    QtDepotSource source(sourcePath);
+    QtBuild build(source, buildPath);
+    buildQt(build);
+
     ProcessResult result;
     result.success = true;
     return result;
@@ -735,34 +628,39 @@ ProcessResult QmakeProjectBuilder(const QString &sourcePath, const QString &buil
 }
 
 
-ProjectHistoryBuilder::ProjectHistoryBuilder()
+ProjectHistoryBuilder::ProjectHistoryBuilder(const QString &sourceUrl, const QString &basePath)
+:buildDatabase(basePath + "/builddatabase.sqlite")
 {
-    this->workPath = QDir::currentPath() + "history";
+    this->sourceUrl = sourceUrl;
+    this->basePath = basePath;
+    this->workPath = basePath + "/history";
+    gitClient = GitClient::cloneFromLocalPath(this->sourceUrl, this->basePath);
+    this->dryRun = false;
+    this->useShadowBuild = false;
 }
 
-void ProjectHistoryBuilder::build()
+void ProjectHistoryBuilder::build(int revisionCount)
 {
-    openDatabase("database");
+
 //    displayDatabaseTable("Builds");
 
-    vcsClient = new GitClient(this->sourceUrl);
-    projectBuilder = new ProjectBuilder;
+       projectBuilder = new ProjectBuilder;
     qDebug() << "syncing project" << sourceUrl;
-    ProcessResult result = vcsClient->sync();
+    ProcessResult result = gitClient->sync();
     if (result.success == false) {
         qDebug() << "Git sync error" << result.output;
         return;
     }
     qDebug() << "finding project revisions";
-    revisions = vcsClient->revisions();
+    revisions = gitClient->revisions();
     if (revisions.isEmpty()) {
         qDebug() << "no revisions found";
         return;
     }
     qDebug() << "found" <<  revisions.count() << "revisions";
-    buildHistory();
+    buildHistory(revisionCount);
 }
-
+/*
 void Visitor::performVisit(const QList<QByteArray> &commits)
 {
     m_commits = commits;
@@ -790,5 +688,5 @@ void Visitor::stage(const QString &sha1)
     rmrf(stagePath2);
     symLink(basePath + "/" + sha1, stagePath);
 }
-
+*/
 

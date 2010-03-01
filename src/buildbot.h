@@ -1,23 +1,21 @@
 #include <QtCore>
+#include <QtSql>
 
-struct ProcessResult{
-    ProcessResult() {}
-    ProcessResult(bool success, QByteArray output) 
-        : success(success), output(output) {}
-    bool success;
-    QByteArray output;
-};
+#include "util.h"
+#include "gitclient.h"
+#include "builddatabase.h"
 
 ProcessResult runProcess(const QString &executable, const QStringList &arguments, const QString workingDir = QString());
 QList<QByteArray> findCommits(const QString &path);
 
 class QtSource
 {
-public: 
+public:
     QtSource() {};
     QtSource(const QString &sourcePath, const QString &version = QString(" "))
     : path(sourcePath), version(version) { }
-    
+
+
     QString path;
     QString version;
 };
@@ -34,12 +32,12 @@ public:
 class QtBuild
 {
 public:
-    QtBuild(const QtSource &source, const QString &buildPath) 
+    QtBuild(const QtSource &source, const QString &buildPath)
     : source(source), buildPath(buildPath) {}
 
-    QtBuild(const QtSource &source) 
+    QtBuild(const QtSource &source)
     : source(source), buildPath(source.path) {}
-    
+
     QStringList supportedConfigureOptions();
     ProcessResult configure();
     ProcessResult configure(const QStringList &options);
@@ -60,33 +58,11 @@ public:
     static QStringList nonessentialFiles;
 };
 
-class VCSClient
-{
-public:
-    virtual ProcessResult sync() = 0;
-    virtual QStringList revisions() = 0;
-    virtual ProcessResult syncToRevision(const QString &revision) = 0;
-};
-
-class GitClient : public VCSClient
-{
-public:
-    GitClient (const QString &sourceUrl);
-    ProcessResult sync();
-    QStringList revisions();
-    ProcessResult syncToRevision(const QString &revision);
-    QString projectPath() { return m_projectPath; }
-private:
-    QString m_sourceUrl;
-    QString m_projectName;
-    QString m_projectPath;
-    QStringList m_revisions;
-};
 
 class ProjectBuilder
 {
 public:
-    ~ProjectBuilder();
+    virtual ~ProjectBuilder();
     virtual ProcessResult buildProject(const QString &sourcePath, const QString &buildPath);
 };
 
@@ -99,10 +75,12 @@ public:
 class ProjectHistoryBuilder
 {
 public:
-    ProjectHistoryBuilder();
+    ProjectHistoryBuilder(const QString &sourceUrl, const QString &basePath);
+    QString basePath;
     QString workPath;
     QString sourceUrl;
 
+    bool useShadowBuild;
     bool storeFullCopy;
     int commitCount;
     bool dryRun;
@@ -112,55 +90,15 @@ public:
 
     QString projectRoot;
 
-    GitClient *vcsClient; // git-only for now.
+    GitClient *gitClient; // git-only for now.
     ProjectBuilder *projectBuilder;
+    BuildDatabase buildDatabase;
 
-    void build();
+    void build(int revisionCount);
+    void buildHistory(int revisionCount);
 private:
-    void buildHistory();
     QStringList revisions;
 };
 
-
-
-//void buildHistorical(HistoricalBuildOptions options);
-
-class Visitor
-{
-public:
-    virtual ~Visitor() {};
-    enum VisitResponse { Pass, Fail, Skip };
-    virtual VisitResponse visit(const QString &) { return Pass; };
-    virtual QString firstSha1() = 0;
-    virtual QString nextSha1() = 0;
-
-    bool isBuilt(const QString &sha1);
-    void stage(const QString &sha1);
-
-    void performVisit(const QList<QByteArray> &commits);
-
-    QList<QByteArray> m_commits;
-    QList<QByteArray> m_skipped;
-};
-
-class LinearSearchVisitor : public Visitor
-{
-public:
-    QString firstSha1()
-    {
-        index = 0;
-        return m_commits.at(index);
-    }
-
-    QString nextSha1()
-    {
-        ++index;
-        if (index > m_commits.count())
-            return QString();
-        return m_commits.at(index);
-    }
-
-    int index;
-};
 
 

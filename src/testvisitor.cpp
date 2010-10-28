@@ -16,6 +16,7 @@ QStringList TestVisitor::setupTests(const QString &qtSourcePath)
     QStringList keys;
     keys.append(QLatin1String("alwaysFail"));
     keys.append(QLatin1String("alwaysPass"));
+    return keys;
 }
 
 QStringList TestVisitor::subKeys(const QString key)
@@ -30,6 +31,7 @@ QByteArray TestVisitor::runTest(const QString &qtBuildPath, const QByteArray &sh
         return QByteArray("Fail");
     if (key == QLatin1String("alwaysPass"))
         return QByteArray("Pass");
+    return QByteArray("Fail");
 }
 
 Visitor::VisitResponse TestVisitor::isPass(const QByteArray &result, const QString &key)
@@ -39,6 +41,7 @@ Visitor::VisitResponse TestVisitor::isPass(const QByteArray &result, const QStri
         return Pass;
     if (key == QLatin1String("Fail"))
         return Fail;
+    return Fail;
 }
 
 QByteArray TestVisitor::createHtmlReport(const QString &key, const QByteArray result, const QString&resourceStorePath)

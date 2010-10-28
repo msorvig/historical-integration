@@ -14,6 +14,7 @@ void DeDupDatabase::addHash(const QString &FileName, const QByteArray &FileHash)
 QByteArray DeDupDatabase::getHash(const QString &FileName)
 {
     //SINGLE_TABLE_DATABASE_SELECT_IMPLEMENTATION_1(ByteArray, FileHash, FileName);
+    return QByteArray();
 }
 
 DeDupStore::DeDupStore()

@@ -67,16 +67,16 @@ ProcessResult runProcess(const QString &executable, const QStringList &arguments
     return ProcessResult(process.exitCode() == 0, process.readAll());
 }
 
-
 void writeFile(const QString &fileName, const QByteArray &contents)
 {
+    qDebug() << "writing to" << fileName;
+
+    QDir().mkpath(QFileInfo(fileName).absolutePath());
+
     QFile f(fileName);
-    f.open(QIODevice::WriteOnly | QIODevice::Append);
+    f.open(QIODevice::WriteOnly);
     f.write(contents);
 }
-
-
-
 
 QtDepotSource::QtDepotSource(QString depotPath, QString version)
 :QtSource(depotPath, version)

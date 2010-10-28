@@ -1,6 +1,15 @@
 #include "builddatabase.h"
+#include "globalsettings.h"
+#include "reports.h"
 
 QString buildsTable = QString("Revision varchar, Status varchar, Log varchar");
+
+BuildDatabase::BuildDatabase()
+:SingleTableDatabase(GlobalSettings::instance()->workspaceLocation + QLatin1String("/database/buildstatus")
+                     , buildsTable, QLatin1String("Builds"))
+{
+    openDatabase();
+}
 
 BuildDatabase::BuildDatabase(const QString &location)
 :SingleTableDatabase(location, buildsTable, QLatin1String("Builds"))
@@ -52,4 +61,16 @@ QString BuildDatabase::getBuildLog(const QString &revision)
         return query.value(0).toString();
     }
     return QString();
+}
+
+void BuildDatabase::writeReport()
+{
+    QString reportHtmlLocation = GlobalSettings::instance()->workspaceLocation
+                                 + QLatin1String("/html/static/buildstatus.html");
+    QString reportJsonLocation = GlobalSettings::instance()->workspaceLocation
+                                 + QLatin1String("/html/dynamic/buildstatus.json");
+
+    writeFile(reportHtmlLocation, "Hello");
+    writeFile(reportJsonLocation, "World");
+
 }

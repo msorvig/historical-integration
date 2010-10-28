@@ -97,9 +97,10 @@ bool syncCompile(const QString &basePath)
         qDebug() << "Watchdog: make clean; make failed on" << basePath << QDateTime::currentDateTime().toString();
         return false;
     }
-
-    return true;
 */
+    return true;
+
+
 }
 
 /*

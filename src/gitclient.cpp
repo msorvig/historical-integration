@@ -113,6 +113,7 @@ GitClient * GitClient::cloneFromUrl(const QString &sourceUrl, QString workPath =
 ProcessResult GitClient::clone()
 {
     //gitClone();
+    return ProcessResult();
 }
 
 ProcessResult GitClient::sync()

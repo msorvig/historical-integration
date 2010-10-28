@@ -1,3 +1,4 @@
+include ($$PWD/../../benchmarker/src/json.pri)
 DEPENDPATH += $$PWD
 INCLUDEPATH += $$PWD
 SOURCES += $$PWD/buildbot.cpp \
@@ -16,7 +17,23 @@ SOURCES += $$PWD/buildbot.cpp \
     process.cpp \
     globalsettings.cpp \
     builddatabase.cpp \
-    watchdog.cpp
+    watchdog.cpp \
+    reports.cpp \
+    driver.cpp \
+    database.cpp \
+    jsongenerator.cpp \
+    dimentioaldatastore.cpp \
+    webgenerator.cpp \
+    livesearch.cpp \
+    benchmarker.cpp \
+    benchmarkertestlibintegration.cpp \
+    hierarchydatagenerator.cpp \
+    dartabasewalker.cpp \
+    testrunner.cpp \
+    log.cpp \
+    testmanager.cpp \
+    testbuilder.cpp \
+    persistentqueue.cpp
 HEADERS += $$PWD/buildbot.h \
     $$PWD/taskmanager.h \
     visitor.h \
@@ -33,8 +50,34 @@ HEADERS += $$PWD/buildbot.h \
     process.h \
     globalsettings.h \
     builddatabase.h \
-    watchdog.h
+    watchdog.h \
+    reports.h \
+    driver.h \
+    database.h \
+    jsongenerator.h \
+    dimentioaldatastore.h \
+    webgenerator.h \
+    livesearch.h \
+    benchmarker.h \
+    benchmarkertestlibintegration.h \
+    hierarchydatagenerator.h \
+    dartabasewalker.h \
+    testrunner.h \
+    log.h \
+    testmanager.h \
+    testbuilder.h \
+    persistentqueue.h
 CONFIG += console
 OBJECTS_DIR = .obj
 MOC_DIR = .moc
-QT += sql
+QT += sql \
+    testlib
+RESOURCES += html.qrc
+OTHER_FILES += buildreport.haml \
+    jquery-1.4.2.js \
+    table.haml \
+    tablecontroller.js \
+    singletable.js \
+    livesearch.js \
+    livesearch.js \
+    livesearchdemo.js

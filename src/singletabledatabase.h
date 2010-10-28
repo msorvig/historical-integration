@@ -14,6 +14,9 @@ public:
     void closeDatabase();
     void deleteDatabase();
 
+    void createTable();
+    void dropTable();
+
     QSqlTableModel *sqlTableModel();
     QSqlTableModel *sqlTableSpecModel();
 

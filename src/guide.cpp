@@ -18,5 +18,5 @@ void GuideDatabase::addResult(const QByteArray &result, const QString& key)
 
 QByteArray result(const QString &key)
 {
-
+    return QByteArray();
 }

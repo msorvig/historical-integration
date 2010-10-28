@@ -1,11 +1,15 @@
 #ifndef GLOBALSETTINGS_H
 #define GLOBALSETTINGS_H
 
+#include <QtGui>
+
 class GlobalSettings
 {
 public:
     GlobalSettings();
-    GlobalSettings *instance();
+    static GlobalSettings *instance();
+
+    QString workspaceLocation;
 
     bool mockSlowOperations;
 private:

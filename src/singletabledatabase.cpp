@@ -107,16 +107,20 @@ void SingleTableDatabase::createNewDatabase()
 {
     qDebug() << "createNewDatabase" << m_databaseLocation;
     m_database.setDatabaseName(m_databaseLocation);
+
+    QDir().mkpath(QFileInfo(m_databaseLocation).absolutePath());
+
     bool ok = m_database.open();
     if (!ok)
         qDebug() << "FAIL: could not create database" << m_databaseLocation;
 
     execQuery("PRAGMA encoding = \"UTF-8\";", true);
 
-    execQuery("CREATE TABLE TableSpec (Spec varchar)");
+    execQuery("CREATE TABLE TableSpec (TableName varchar, Spec varchar)", true);
 
     QSqlQuery query(m_database);
-    query.prepare("INSERT INTO TableSpec (Spec) VALUES (:Spec)");
+    query.prepare("INSERT INTO TableSpec (TableName, Spec) VALUES(:TableName, :Spec)");
+    query.bindValue(":TableName", m_tableName);
     query.bindValue(":Spec", m_tableSpec);
     execQuery(query, true);
     execQuery("CREATE TABLE " +m_tableName + " (" + m_tableSpec + ")");
@@ -161,6 +165,17 @@ void SingleTableDatabase::deleteDatabase()
 {
     m_database.close();
     QFile::remove(m_databaseLocation);
+}
+
+void SingleTableDatabase::createTable()
+{
+
+}
+
+void SingleTableDatabase::dropTable()
+{
+
+
 }
 
 void SingleTableDatabase::openDatabase()

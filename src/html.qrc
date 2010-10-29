@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/html" >
+        <file>jquery-1.4.2.js</file>
+        <file>jquery-1.4.2.min.js</file>
+        <file>buildreport.html</file>
+        <file>table.html</file>
+        <file>tablecontroller.js</file>
+        <file>singletable.js</file>
+        <file>search.html</file>
+        <file>livesearchdemo.js</file>
+    </qresource>
+</RCC>

@@ -106,7 +106,7 @@ TableController = function (params) {
         if (tableType == "table") {
             return interpretTableDataAsGrid(jsonData);
         } else {
-            return interpretTableDataAsHiearchy(jsonData);
+            return interpretTableDataAsList(jsonData);
         }
     }
 
@@ -121,15 +121,13 @@ TableController = function (params) {
            return tableData;
     }
 
-    function interpretTableDataAsHiearchy(jsonData)
+    function interpretTableDataAsList(jsonData)
     {
-        var header = jsonData.indexColumns.slice(0);
-        header.push(jsonData.dataColumns[0]);
+        var header = jsonData.columnNames.slice(0);
 
         var data = [];
         var rowCount  = jsonData.dataTable.length;
-        var indexCount = jsonData.indexColumns.length;
-        var dataCount = jsonData.dataColumns.length;
+        var indexCount = jsonData.columnNames.length;
 
         // console.log(rowCount + " " + indexCount + " " + dataCount);
 
@@ -138,10 +136,10 @@ TableController = function (params) {
             for (var j = 0; j < indexCount; ++j) {
                 var lookup = row[j];
                 //
-                if (lookup < jsonData.indexValues[j].length)
-                   row[j] = jsonData.indexValues[j][lookup];
+                if (lookup < jsonData.columnValues[j].length)
+                   row[j] = jsonData.columnValues[j][lookup];
                 //else
-                //   console.log("row " + i + " col " +j + " lookup " + lookup + " in " + jsonData.indexValues[j].length);
+                //   console.log("row " + i + " col " +j + " lookup " + lookup + " in " + jsonData.columnValues[j].length);
 
             }
             data.push(row);

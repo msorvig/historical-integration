@@ -42,8 +42,8 @@ ChartController = function(params) {
                var seriesIndex = value[seriesDimention];
                if (seriesArray[seriesIndex] === undefined)
                    seriesArray[seriesIndex] = [];
-               var xValue = data.indexValues[xDimention][value[xDimention]];
-               var yValue = value[resultDimention];
+               var xValue = data.columnValues[xDimention][value[xDimention]];
+               var yValue = data.columnValues[resultDimention][value[resultDimention]];
                seriesArray[seriesIndex].push([xValue, yValue]);
          });
         return seriesArray;
@@ -131,7 +131,7 @@ ChartController = function(params) {
    {
        var seriesDimention = selectSeriesDimention(data);
        var series = []
-       $(data.indexValues[seriesDimention]).each(function(index, value) {
+       $(data.columnValues[seriesDimention]).each(function(index, value) {
            series.push({ label: value });
        });
        return series;

@@ -7,6 +7,8 @@ $(document).ready(function() {
     rootElement.append(selectorElement);
     rootElement.append(visualization);
 
+    console.log(jsonData);
+
     var displayOptionSelector = new OptionSelector(
         {
             "title" : "Show",

@@ -136,17 +136,16 @@ QByteArray JsonGenerator::generateFlatJson(BenchmarkTable *benchmarkTable)
     qDebug() << "## generateFlatJson" << indexDimentions << outputDimentions;
 
     QByteArray data = generateFlatJson(benchmarkTable->tableName(),
-                                       indexDimentions, outputDimentions);
+                                       indexDimentions + outputDimentions);
 
     QByteArray attributes = generateFlatJson(benchmarkTable->attributeTableName(),
-                                             QStringList() << "Key", QStringList() << "Value");
+                                             QStringList() << "Key" << "Value");
 
     return QString("{ \"data\" : %1 , \"attributes\" : %2 }")
            .arg(QString(data)).arg(QString(attributes)).toUtf8();
 }
 
-QByteArray JsonGenerator::generateFlatJson(const QString &tableName, const QStringList &indexDimentions,
-                                                                     const QStringList &outputDimentions)
+QByteArray JsonGenerator::generateFlatJson(const QString &tableName, const QStringList &indexDimentions)
 {
     //
     // Format Example:
@@ -163,37 +162,33 @@ QByteArray JsonGenerator::generateFlatJson(const QString &tableName, const QStri
     m_tableName = tableName;
     m_columnValues.clear();
 
-    QStringList indexColumns = indexDimentions;
-    QStringList dataColumns = outputDimentions;
+    QStringList columnNames = indexDimentions;
 
-    // For each index coloumn, find and index all possible values.
-    QList<QHash<QVariant, int> > indexValuesList;
+    // For each coloumn, find and index all possible values.
+    QList<QHash<QVariant, int> > indexedValuesList;
     QList<QList<QVariant> > valuesList;
-    foreach (const QString &indexColumn, indexColumns) {
-        const QList<QVariant> values = lookupDistinctColumnValues(indexColumn);
+    foreach (const QString &columnName, columnNames) {
+        const QList<QVariant> values = lookupDistinctColumnValues(columnName);
         valuesList.append(values);
 
-        QHash<QVariant, int> indexValues;
+        QHash<QVariant, int> indexedValues;
         int valueIndex = 0;
         foreach (const QVariant &value, values) {
-            if (indexValues.contains(value) == false) {
-                indexValues[value] = valueIndex++;
+            if (indexedValues.contains(value) == false) {
+                indexedValues[value] = valueIndex++;
             }
         }
-        indexValuesList.append(indexValues);
+        indexedValuesList.append(indexedValues);
     }
 
     // Stream the indexing part to json
     QMap<QString, json_object *> topLevel;
-    topLevel.insert(QLatin1String("indexColumns"), toJson(indexColumns));
-    topLevel.insert(QLatin1String("dataColumns"), toJson(dataColumns));
-    topLevel.insert(QLatin1String("indexValues"), toJson(valuesList));
-
+    topLevel.insert(QLatin1String("columnNames"), toJson(columnNames));
+    topLevel.insert(QLatin1String("columnValues"), toJson(valuesList));
 
     // Stream the (data) rows.
-    QString queryString = QString("SELECT %1, %2 FROM %3").arg(
-                           Database::scrub(indexColumns.join(",")),
-                           Database::scrub(dataColumns.join(",")),
+    QString queryString = QString("SELECT %1 FROM %2").arg(
+                           Database::scrub(columnNames.join(",")),
                            Database::scrub(m_tableName));
 
     //qDebug() << "query" << queryString;
@@ -204,16 +199,11 @@ QByteArray JsonGenerator::generateFlatJson(const QString &tableName, const QStri
     while (query.next()) {
         QList<json_object *> columns;
         int columnIndex = 0;
-        foreach (const QString &index, indexColumns) {
+        foreach (const QString &columnName, columnNames) {
             // look up and stream the numerical index for each column value.
-            const QString column = query.value(columnIndex).toString();
-            const int i = indexValuesList[columnIndex][column];
+            const QString columnValue = query.value(columnIndex).toString();
+            const int i = indexedValuesList[columnIndex][columnValue];
             columns.append(toJson(i));
-            ++columnIndex;
-        }
-        foreach (const QString &data, dataColumns) {
-            // Stream the data directly
-            columns.append(toJson(query.value(columnIndex)));
             ++columnIndex;
         }
         rows.append(toJson(columns));

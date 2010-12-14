@@ -12,8 +12,7 @@ public:
     // "flat" json
     QByteArray generateFlatJson(const QString &tableName);
     QByteArray generateFlatJson(BenchmarkTable *benchmarkTable);
-    QByteArray generateFlatJson(const QString &tableName, const QStringList &hiearchyDimentions,
-                                                          const QStringList &outputDimentions);
+    QByteArray generateFlatJson(const QString &tableName, const QStringList &hiearchyDimentions);
 private:
     QList<QVariant> lookupDistinctColumnValues(const QString &columnName);
 

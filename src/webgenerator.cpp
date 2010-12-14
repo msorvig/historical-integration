@@ -107,8 +107,8 @@ QByteArray WebGenerator::performReplacements(const QByteArray &html, const QByte
                 replacement = "<script type='text/javascript'> "
                             + readFile(":html/" + name) + "</script>";
             } else {
-                replacement = "<link rel='stylesheet' type='text/css' href= '"
-                            + readFile(":html/" + name) + "'/>";
+                replacement = "<style type'text/css'><!-- "
+                            + readFile(":html/" + name) + " --></style>";
             }
         } else if (mode == SelfContainedDev) {
             if (name.endsWith("js")) {

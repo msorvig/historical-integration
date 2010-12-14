@@ -1,10 +1,12 @@
 include(../../src/buildbot.pri)
-QT += network \
-    sql \
-    testlib
-TARGET = tst_buildbot
+
+DEFINES += BENCHMARKER_DEV_MODE
+
+TARGET = benchmarker
 CONFIG += console
 CONFIG -= app_bundle
+CONFIG += release
+
 TEMPLATE = app
+
 SOURCES += main.cpp
-HEADERS += 

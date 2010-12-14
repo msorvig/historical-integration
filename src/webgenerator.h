@@ -3,7 +3,9 @@
 
 #include <QObject>
 
-class WebGenerator : public QObject
+void writeFile(const QString &fileName, const QByteArray &contents);
+
+class WebGenerator
 {
 public:
     WebGenerator();
@@ -11,8 +13,7 @@ public:
     QByteArray instantiateSelfContained(const QString &templateFileName,
                                         const QByteArray &jsonData);
     QByteArray instantiateSelfContainedDev(const QString &templateFileName,
-                                           const QByteArray &jsonData,
-                                           const QString &pathToSrc);
+                                           const QByteArray &jsonData);
 
     enum Mode { SelfContained, SelfContainedDev };
     QByteArray performReplacements(const QByteArray &html,

@@ -1,28 +1,27 @@
 
 TableController = function (params) {
-    var dimentionalData = params.dimentionalData;
-    var tableDiv = params.tableDiv;
+    var tableData = params.tableData.data;
+    var tableType = params.tableType; // "table" or "list"
 
-    function createTable() {
-        tableDiv.html = "foo oo";
-        console.log(tableData);
-        console.log(tableDiv);
+    function create(tableElement) {
+//           var tableTestData = {
+//                "horizontalHeader" : ["Foo", "Bar"],
+//                "verticalHeader" : ["Ralla", "Jalla" ],
+//                "data" : [[1, "sdfsafsafsdfdsfsdf"], [3,4]]
+//                }
 
-           var tableData = {
-                "horizontalHeader" : ["Foo", "Bar"],
-                "verticalHeader" : ["Ralla", "Jalla" ],
-                "data" : [[1, "sdfsafsafsdfdsfsdf"], [3,4]]
-                }
-
-        var convertedData = convertDimentionalData(dimentionalData);
-        $(tableDiv).populateTableWithObject(convertedData);
+        var interpretedData = interpretTableData(tableData);
+        var actualTable = $(tableElement).populateTableWithObject(interpretedData);
     }
 
     jQuery.fn.createTableCellsWithArray = function(array, cellType) {
+        if (array === undefined)
+            return;
         return this.each(function(){
             var row = this;
             $(array).each(function(index, value){
-                console.log(this + index + value);
+                // console.log(this + index + value);
+
                 var cellTypeTag = "<" + cellType + ">";
                 var header = $(cellTypeTag);
 
@@ -30,13 +29,18 @@ TableController = function (params) {
                 // the headers are plain values. This should be
                 // unified somehow.
                 if (value instanceof Array) {
-                    $(header).append(value[0]);
+                    header.append(value[0]);
                 } else {
-                    $(header).append(value);
+                    // ### I'm doing something wrong, the append below
+                    // fails for "constructor". Probably a keyword.
+                    if (value == "constructor")
+                        value = "constructor "; //add space
+
+                    header.append(value);
                 }
 
                 var cellTypeCloseTag = "</" + cellType + ">";
-                $(header).append(cellTypeCloseTag);
+                header.append(cellTypeCloseTag);
                 $(row).append(header);
             });
         });
@@ -46,9 +50,10 @@ TableController = function (params) {
         return this.each(function(){
             var tbody = this;
             $(arrays).each(function(index, value){
-                console.log(this + index + value);
+                // console.log(this + index + value);
                 var row = $("<tr>");
-                    $(row).createTableCellsWithArray([verticalHeaders[index]], "th")
+                    if (verticalHeaders !== undefined)
+                        $(row).createTableCellsWithArray([s[index]], "th")
                     $(row).createTableCellsWithArray(value, "td")
                 $(row).append("</tr>");
                 $(tbody).append(row);
@@ -64,14 +69,14 @@ TableController = function (params) {
 */
     jQuery.fn.populateTableWithObject = function(data) {
     return this.each(function(){
-        console.log("Hello.");
-        console.log(data.horizontalHeader);
-        console.log(data.data);
+        // console.log("Hello.");
+        // console.log(data.horizontalHeader);
+        // console.log(data.data);
 
         var table = $("<table>");
             var thead = $("<thead>")
                 var row = $("<tr>")
-                if (data.verticalHeader.length >  0)
+                if (data.verticalHeader !== undefined && data.verticalHeader.length >  0)
                     data.horizontalHeader.unshift(" ");
                 $(row).createTableCellsWithArray(data.horizontalHeader, "th");
                 $(row).append("</tr>");
@@ -84,26 +89,72 @@ TableController = function (params) {
         $(table).append(tbody);
         $(table).append("</table>");
         $(this).append(table);
+        table.dataTable({
+            "bPaginate": false
+        });
     });
     };
 
 
-    /*
-        Creates a data object usable by createTableRowsWithArrays
-        from a dimentinal data structure.
-    */
-    function convertDimentionalData(dimentionalData)
+    function interpretTableData(jsonData)
     {
-           var tableData = {
-                "horizontalHeader" : dimentionalData.indexValues[0],
-                "verticalHeader" :   dimentionalData.indexValues[1],
-                "data" : dimentionalData.dataTable
+        // console.log("tableType " + tableType);
+
+        // Support two interpretations for now:
+        // - (2D) table
+        // - (1D) list
+        if (tableType == "table") {
+            return interpretTableDataAsGrid(jsonData);
+        } else {
+            return interpretTableDataAsHiearchy(jsonData);
+        }
+    }
+
+     function interpretTableDataAsGrid(jsonData)
+    {
+        var tableData = {
+                "horizontalHeader" : jsonData.indexColumns,
+                "verticalHeader" : undefined,
+                "data" : [[1, "sdfsafsafsdfdsfsdf"], [3,4]]
                 }
 
            return tableData;
     }
 
+    function interpretTableDataAsHiearchy(jsonData)
+    {
+        var header = jsonData.indexColumns.slice(0);
+        header.push(jsonData.dataColumns[0]);
+
+        var data = [];
+        var rowCount  = jsonData.dataTable.length;
+        var indexCount = jsonData.indexColumns.length;
+        var dataCount = jsonData.dataColumns.length;
+
+        // console.log(rowCount + " " + indexCount + " " + dataCount);
+
+        for (var i =0; i < rowCount; ++i) {
+            var row = jsonData.dataTable[i].slice(0);
+            for (var j = 0; j < indexCount; ++j) {
+                var lookup = row[j];
+                //
+                if (lookup < jsonData.indexValues[j].length)
+                   row[j] = jsonData.indexValues[j][lookup];
+                //else
+                //   console.log("row " + i + " col " +j + " lookup " + lookup + " in " + jsonData.indexValues[j].length);
+
+            }
+            data.push(row);
+        }
+
+        return  {
+                "horizontalHeader" : header,
+                "verticalHeader" : undefined,
+                "data" : data
+                }
+    }
+
     return {
-        "createTable" : createTable
+        "create" : create
     }
 };

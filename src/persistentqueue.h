@@ -8,6 +8,7 @@ class PersistentQueue : public QObject
 {
 public:
     PersistentQueue(const QString &name, const QString &databasePath);
+    ~PersistentQueue();
     void clear();
     bool isEmpty();
     void enqueue(const QString &item);

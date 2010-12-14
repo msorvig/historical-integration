@@ -20,8 +20,8 @@ static int i = 1;
 
 BenchmarkerTestlibIntegration::BenchmarkerTestlibIntegration()
 {
-    g_testCaseTable()->setDimention("TestFunction", QTest::currentTestFunction());
-    g_testCaseTable()->setDimention("DataTag", QTest::currentDataTag());
+    g_testCaseTable()->setDimention("TestFunction", QString::fromAscii(QTest::currentTestFunction()));
+    g_testCaseTable()->setDimention("DataTag", QString::fromAscii(QTest::currentDataTag()));
 
     g_testCaseTable()->setValue(i++);
 
@@ -47,18 +47,18 @@ BenchmarkTable *BenchmarkerTestlibIntegration::testCaseTable()
 void TestCaseReportGenerator::createReport()
 {
     qDebug() << "create report";
-    g_database()->database().commit();
+    g_database()->commit();
 
     JsonGenerator jsonGenerator(g_database());
-    QByteArray json = jsonGenerator.generateHierarchyJson(g_testCaseTable());
+    QByteArray json = jsonGenerator.generateFlatJson(g_testCaseTable());
 
     DatabaseWalker walker(g_database());
-    walker.testWalk(g_testCaseTable());
+    walker.printWalk(g_testCaseTable());
 
     writeFile("report.json", json);
 
     WebGenerator webGenerator;
-    QByteArray report = webGenerator.instantiateSelfContainedDev("singletable", json, "../../src");
+    QByteArray report = webGenerator.instantiateSelfContainedDev("singletable", json);
     writeFile("report.html", report);
 
     // Close the database:

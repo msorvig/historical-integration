@@ -41,7 +41,7 @@ void LiveSearch::generateIndexFiles(const QString &path)
         if (count) {
            // m_database->displayTable("TempLiveSearch");
             qDebug() << "data at" << keyStart << count;
-            QByteArray json = jsonGenerator.generateJson("TempLiveSearch", QStringList() << "Key", QStringList() << "Value");
+            QByteArray json = jsonGenerator.generateFlatJson("TempLiveSearch", QStringList() << "Key", QStringList() << "Value");
             writeFile(canonicalPath + "/" + keyStart, json);
         }
 

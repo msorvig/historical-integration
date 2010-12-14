@@ -1,12 +1,41 @@
 <RCC>
-    <qresource prefix="/html" >
+    <qresource prefix="/html">
         <file>jquery-1.4.2.js</file>
         <file>jquery-1.4.2.min.js</file>
+        <file>jquery.js</file>
+
+        <file>jqplot.barRenderer.min.js</file>
+ 		<file>jqplot.canvasAxisLabelRenderer.min.js</file>
+ 		<file>jqplot.canvasAxisTickRenderer.min.js</file>
+ 		<file>jqplot.canvasTextRenderer.min.js</file>
+ 		<file>jqplot.cursor.min.js</file>
+ 		<file>jqplot.dateAxisRenderer.min.js</file>
+ 		<file>jqplot.enhancedLegendRenderer.min.js</file>
+ 		<file>jqplot.highlighter.min.js</file>
+ 		<file>jquery.jqplot.css</file>
+ 		<file>jquery.jqplot.js</file>
+ 		<file>jquery.jqplot.min.js</file>
+ 		<file>jqplot.enhancedlegendrenderer.min.js</file>
+		<file>jqplot.dateaxisrenderer.min.js</file>
+		<file>jqplot.canvastextrenderer.min.js</file>
+		<file>jqplot.canvasaxislabelrenderer.min.js</file>
+		<file>jqplot.canvasaxistickrenderer.min.js</file>
+		<file>jqplot.barrenderer.min.js</file>
+
+        <file>jquery.datatables.min.js</file>
+
+        <file>livesearchdemo.js</file>
+        <file>chartcontroller.js</file>
+        <file>optionselector.js</file>
+        <file>jsondataparser.js</file>
+        <file>reportcontroller.js</file>
+        		
         <file>buildreport.html</file>
         <file>table.html</file>
+        <file>report.html</file>
         <file>tablecontroller.js</file>
         <file>singletable.js</file>
         <file>search.html</file>
-        <file>livesearchdemo.js</file>
+
     </qresource>
 </RCC>

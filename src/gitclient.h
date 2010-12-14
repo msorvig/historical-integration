@@ -15,13 +15,16 @@ public:
 class GitClient : public VCSClient
 {
 public:
+    // TODO: separate this onto a git-clone class and
+    // a class that works on a given repository
     static GitClient *cloneFromLocalPath(const QString &sourceUrl, const QString &workDir);
     static GitClient *cloneFromUrl(const QString &sourcePath, QString workPath);
+    ProcessResult clone();
+    ProcessResult sync();
+
 
     GitClient(const QString &repositoryPath = QString());
 
-    ProcessResult clone();
-    ProcessResult sync();
     ProcessResult syncBack(int revisions);
     ProcessResult checkout(const QString &branch);
     QStringList revisions();

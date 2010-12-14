@@ -16,6 +16,7 @@ public:
 
     QStringList tables();
     QStringList columns(const QString &tableName);
+    QString schema(const QString &m_tableName);
 
     void transaction();
     void commit();
@@ -30,6 +31,7 @@ public:
     QVariant selectVariant(const  QString &queryString);
     QStringList selectStringList(const QString &queryString);
     QStringList selectDistinct(const QString &field, const QString &tableName);
+    QList<QVariant> selectDistinctVariants(const QString &field, const QString &tableName);
     QStringList selectDistinctWhere(const QString &field, const QString &tableName,
                                     const QStringList &whereColumns, const QStringList &whereValues);
 
@@ -55,6 +57,10 @@ public:
                     const QString &insertColumnName, const QVariant &insertColumnValue,
                     const QString &whereColumnName, const QVariant &whereColumnValue);
 
+    QString createTempTable(const QString &sourceTableName);
+    void destroyTempTable(const QString &tableName);
+    QString filterTable(const QString &sourceTableName, const QString &filterQuery);
+
     void execQuery(QSqlQuery query, bool warnOnFail);
     QSqlQuery execQuery(const QString &spec, bool warnOnFail);
 protected:
@@ -68,7 +74,7 @@ private:
     QString m_path;
     QSqlDatabase m_database;
     int m_transactionCount;
-
+    int m_tempTableIndex;
     QHash<QString, QSqlQuery> m_queryCache;
 };
 
@@ -82,6 +88,7 @@ public:
 
     // Data inserting API:
     void setDimention(const QString &name, const QString &value);
+    void setDimention(const QString &name, const QVariant &value);
     void clearDimention(const QString &name);
 
     void setValue(double value);
@@ -90,26 +97,32 @@ public:
 
     // TODO: void setValue(const QString &dimention, double value);
 
+    void setAttribute(const QString &key, const QString &value);
+
     // Querying API
     QString tableName();
+    QString attributeTableName();
     QStringList indexDimentions();
     QStringList valueDimentions();
     // Todo: units, description text, ++
 
+    BenchmarkTable filtered(const QString &query);
 private:
     void prepareValueInsertion(const QString &valueDimentionName, const QString sqlDimentionType);
     void insertValue(const QString &valueColumnName, const QVariant &value);
 
     // Dimention lists - maintained on inserts only.
-    QHash<QString, QString> m_indexDimentions; // dimention name -> (current) value
+    QHash<QString, QVariant> m_indexDimentions; // dimention name -> (current) value
+    QHash<QString, QString> m_indexDimentionTypes; // dimention name -> type
     QStringList m_indexDimentionOrder;
-    QHash<QString, QString> m_valueDimentions; // dimention name -> type
+    QHash<QString, QString> m_valueDimentionTypes; // dimention name -> type
     QStringList m_valueDimentionOrder;
     QString schemaFromDimentions();
 
     QSqlDatabase m_sqlDatabase;
     Database *m_database;
     QString m_tableName;
+    QString m_attributeTableName;
     bool m_setValueCalled;
 };
 

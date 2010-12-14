@@ -1,6 +1,11 @@
 include ($$PWD/../../benchmarker/src/json.pri)
 DEPENDPATH += $$PWD
 INCLUDEPATH += $$PWD
+
+DEFINES += SRCPATH=$$PWD
+
+# include ($$PWD/libgit2/libgit2.pri)
+
 SOURCES += $$PWD/buildbot.cpp \
     $$PWD/taskmanager.cpp \
     visitor.cpp \
@@ -33,7 +38,10 @@ SOURCES += $$PWD/buildbot.cpp \
     log.cpp \
     testmanager.cpp \
     testbuilder.cpp \
-    persistentqueue.cpp
+    persistentqueue.cpp \
+    ../../src/benchmarkdimention.cpp \
+    ../../src/benchmarkevent.cpp \
+    ../../src/reportgenerator.cpp
 HEADERS += $$PWD/buildbot.h \
     $$PWD/taskmanager.h \
     visitor.h \
@@ -66,7 +74,10 @@ HEADERS += $$PWD/buildbot.h \
     log.h \
     testmanager.h \
     testbuilder.h \
-    persistentqueue.h
+    persistentqueue.h \
+    ../../src/benchmarkdimention.h \
+    ../../src/benchmarkevent.h \
+    ../../src/reportgenerator.h
 CONFIG += console
 OBJECTS_DIR = .obj
 MOC_DIR = .moc
@@ -80,4 +91,10 @@ OTHER_FILES += buildreport.haml \
     singletable.js \
     livesearch.js \
     livesearch.js \
-    livesearchdemo.js
+    livesearchdemo.js \
+    jsoncache.js \
+    ../../src/reportcontroller.js \
+    ../../src/report.html \
+    ../../src/chartcontroller.js \
+    ../../src/optionselector.js \
+    ../../src/jsondataparser.js

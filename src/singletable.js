@@ -1,6 +1,8 @@
 $(document).ready(function() {
     var tableController = new TableController(
-            {"dimentionalData": jsonData,
-             "tableDiv": $("#table")});
+            {"tableData": jsonData,
+             "tableDiv": $("#table"),
+             "tableType": "grid"
+            });
     tableController.createTable();
 });

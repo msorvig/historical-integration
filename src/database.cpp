@@ -2,13 +2,15 @@
 #include <QtCore>
 #include <QtSql>
 #include <QtGui>
+#include "log.h"
 
 BenchmarkTable::BenchmarkTable(Database *database, const QString &tableName)
 {
     m_database = database;
     m_sqlDatabase = database->database();
     m_tableName = tableName;
-    m_setValueCalled = false;;
+    m_attributeTableName = tableName + "Attributes";
+    m_setValueCalled = false;
 }
 
 BenchmarkTable::~BenchmarkTable()
@@ -47,9 +49,36 @@ void BenchmarkTable::setDimention(const QString &name, const QString &value)
     else
         m_indexDimentions[name] = value;
 
-    if (m_indexDimentionOrder.contains(name) == false)
+
+    if (m_indexDimentionOrder.contains(name) == false) {
+        m_indexDimentionTypes[name] = QLatin1String("TEXT");
         m_indexDimentionOrder.append(name);
+    }
 }
+
+QString variantToSqlType(const QVariant &value)
+{
+    if (qstrcmp(value.typeName(), "int") == 0) {
+        return QLatin1String("INTEGER");
+    } else if (qstrcmp(value.typeName(), "double") == 0) {
+        return QLatin1String("REAL");
+    } else if (qstrcmp(value.typeName(), "float") == 0) {
+        return QLatin1String("REAL");
+    }
+    return QLatin1String("TEXT");
+}
+
+
+void BenchmarkTable::setDimention(const QString &name, const QVariant &value)
+{
+   m_indexDimentions[name] = value;
+
+    if (m_indexDimentionOrder.contains(name) == false) {
+        m_indexDimentionTypes[name] = variantToSqlType(value);
+        m_indexDimentionOrder.append(name);
+    }
+}
+
 
 void BenchmarkTable::clearDimention(const QString &name)
 {
@@ -74,6 +103,21 @@ void BenchmarkTable::setValue(const QString &name, double value)
     insertValue(name, QVariant(value));
 }
 
+void BenchmarkTable::setAttribute(const QString &key, const QString &value)
+{
+    // Create the attribute table if necessary.
+    if (m_database->tables().contains(m_attributeTableName) == false) {
+        const QString queryString =
+            QString("CREATE TABLE %1 (Key VARCHAR, Value VARCHAR)")
+                    .arg(m_attributeTableName);
+        m_database->execQuery(queryString, true);
+    }
+
+    m_database->insertRow(m_attributeTableName,
+                          QStringList() << "Key" << "Value",
+                          QList<QVariant>() << key << value);
+}
+
 void BenchmarkTable::prepareValueInsertion(const QString &valueDimentionName, const QString sqlDimentionType)
 {
     //   qDebug() << "setValue" << value;
@@ -85,8 +129,8 @@ void BenchmarkTable::prepareValueInsertion(const QString &valueDimentionName, co
     m_setValueCalled = true;
 
     // Store various meta-information about this table.
-    if (m_valueDimentions.keys().contains(valueDimentionName) == false) {
-        m_valueDimentions.insert(valueDimentionName, sqlDimentionType);
+    if (m_valueDimentionTypes.keys().contains(valueDimentionName) == false) {
+        m_valueDimentionTypes.insert(valueDimentionName, sqlDimentionType);
         m_valueDimentionOrder.append(valueDimentionName);
     }
 
@@ -98,11 +142,11 @@ void BenchmarkTable::prepareValueInsertion(const QString &valueDimentionName, co
     // ### replace with PRAGMA table_info(table-name);
     QStringList columnNames = m_indexDimentionOrder + m_valueDimentionOrder;
     QStringList columnTypes;
-    foreach (const QString &foo, m_indexDimentionOrder) {
-        columnTypes.append("TEXT");
+    foreach (const QString &name, m_indexDimentionOrder) {
+        columnTypes.append(m_indexDimentionTypes.value(name));
     }
     foreach (const QString &name, m_valueDimentionOrder) {
-        columnTypes.append(m_valueDimentions.value(name));
+        columnTypes.append(m_valueDimentionTypes.value(name));
     }
 
     m_database->updateTableSchema(m_tableName, columnNames, columnTypes);
@@ -133,6 +177,11 @@ QString BenchmarkTable::tableName()
     return m_tableName;
 }
 
+QString BenchmarkTable::attributeTableName()
+{
+    return m_attributeTableName;
+}
+
 QStringList BenchmarkTable::indexDimentions()
 {
     return m_database->selectCell("BenchmarkTables", "IndexDimentions", "TableName", m_tableName)
@@ -145,10 +194,25 @@ QStringList BenchmarkTable::valueDimentions()
             .toString().split(" ", QString::SkipEmptyParts);
 }
 
+BenchmarkTable BenchmarkTable::filtered(const QString &query)
+{
+    // filter/copy table data
+    QString newTableName = m_database->filterTable(m_tableName, query);
+    BenchmarkTable newTable(m_database, newTableName);
+
+    // update/copy meta-data.
+    newTable.updateBenchmarkTables(indexDimentions(), valueDimentions());
+    // TODO attributes
+    //m_database->copyTable(m_attributeTableName, newTable.attributeTableName)
+
+    return newTable;
+}
+
 Database::Database()
 {
     m_path = "qtbuildbot.sqlite";
     m_transactionCount = 0;
+    m_tempTableIndex = 0;
     openDatabase();
 }
 
@@ -179,9 +243,46 @@ QStringList Database::tables()
 
 QStringList Database::columns(const QString &tableName)
 {
-    // ### PRAGMA table_info(table-name);
-    QString columns = selectString("SELECT Columns FROM MetaTable WHERE TableName = '" + tableName + "'");
-    return columns.split(" ");
+    // NB: sqlite PRAGMA used here
+    QString queryString = QString("PRAGMA table_info(%1);").arg(tableName);
+
+    QSqlQuery query(m_database);
+    query.prepare(queryString);
+    execQuery(query, true);
+
+    QStringList columnNames;
+
+    while (query.isActive()) {
+        if (query.next() == false)
+            break;
+
+        columnNames.append(query.value(1).toString());
+    }
+
+    return columnNames;
+}
+
+QString Database::schema(const QString &tableName)
+{
+    // NB: sqlite PRAGMA used here
+    QString queryString = QString("PRAGMA table_info(%1);").arg(tableName);
+
+    QSqlQuery query(m_database);
+    query.prepare(queryString);
+    execQuery(query, true);
+
+    QStringList columnNames;
+    QStringList columnTypes;
+
+    while (query.isActive()) {
+        if (query.next() == false)
+            break;
+
+        columnNames.append(query.value(1).toString());
+        columnTypes.append(query.value(2).toString());
+    }
+
+    return schemaFromColumns(columnNames, columnTypes);
 }
 
 void Database::transaction()
@@ -196,6 +297,8 @@ void Database::commit()
     --m_transactionCount;
     if (m_transactionCount == 0)
         m_database.commit();
+    if (m_transactionCount < 0)
+        m_transactionCount = 0;
 }
 
 QString Database::schemaFromColumns(const QStringList &columnNames, const QStringList &columnTypes)
@@ -217,6 +320,8 @@ bool Database::updateTableSchema(const QString &tableName, const QStringList &co
 {
     QString schema = schemaFromColumns(columnNames, columnTypes);
 
+    // qDebug() << "existing tables" << tables();
+
     // qDebug() << "update schema for " << tableName << schema;
 
     // Meta: the MetaTable contains info about each table:
@@ -226,8 +331,8 @@ bool Database::updateTableSchema(const QString &tableName, const QStringList &co
     }
 
     // Create table if it does not exist.
-    if (tables().contains(tableName) == false) {
-         qDebug() << "create table";
+    if (tables().contains(tableName.simplified()) == false) {
+         qDebug() << "create table" << tableName << schema;
         execQuery("CREATE TABLE " + tableName + " " + schema, true);
         insertRow("MetaTable",
                   QStringList() << "TableName" << "Columns",
@@ -319,7 +424,17 @@ QStringList Database::selectStringList(const QString &queryString)
 
 QStringList Database::selectDistinct(const QString &field, const QString &tableName)
 {
-    QSqlQuery query;
+    const QList<QVariant> values = selectDistinctVariants(field, tableName);
+    QStringList stringValues;
+    foreach (const QVariant value, values) {
+        stringValues.append(value.toString());
+    }
+    return stringValues;
+}
+
+QList<QVariant> Database::selectDistinctVariants(const QString &field, const QString &tableName)
+{
+    QSqlQuery query(m_database);
     QString key = "selectDistinct" + field + tableName;
     if (m_queryCache.contains(key)) {
         query = m_queryCache.value(key);
@@ -333,9 +448,9 @@ QStringList Database::selectDistinct(const QString &field, const QString &tableN
 //    if (!ok)
 //        qDebug() << "select unique ok" << ok;
 
-    QStringList values;
+    QList<QVariant> values;
     while (query.next()) {
-        values += query.value(0).toString();
+        values += query.value(0);
     }
     return values;
 }
@@ -343,7 +458,7 @@ QStringList Database::selectDistinct(const QString &field, const QString &tableN
 QStringList Database::selectDistinctWhere(const QString &field, const QString &tableName,
                                 const QStringList &whereColumns, const QStringList &whereValues)
 {
-    QSqlQuery query;
+    QSqlQuery query(m_database);
     QString key = "selectDistinct" + field + tableName + whereColumns.join("");
     if (m_queryCache.contains(key)) {
         query = m_queryCache.value(key);
@@ -389,7 +504,9 @@ QString Database::scrub(const QString &string)
     QString out = string;
     out.prepend(" ");
     out.append(" ");
-    out.replace(";", " ");
+    out.replace(";", "");
+    out.replace(":", "");
+    out.replace("/", "");
     return out;
 }
 
@@ -428,8 +545,6 @@ QList<QVariant> Database::selectMultipleWhere(const QString &tableName, const QS
 
     if (m_queryCache.contains(key) == false) {
         QSqlQuery query(database());
-
-         qDebug() << "selectMultipleWhere" << key;
         //QString selectString = foldl(map(selectColumns, [const QString &string]{ return scrub(string)}))
         QString selectString = "SELECT";
         foreach (const QString &selectColumn, selectColumns) {
@@ -524,7 +639,7 @@ void Database::updateCell(const QString &tableName,
 
     // add row if missing
     if (value.isValid() == false) {
-        qDebug() << "updateCell; insert row";
+        //qDebug() << "updateCell; insert row";
         insertRow(tableName, QStringList() << whereColumnName << insertColumnName,
                              QList<QVariant>() << whereColumnValue << insertColumnValue);
         return;
@@ -541,7 +656,7 @@ void Database::updateCell(const QString &tableName,
 
     execQuery(query, true);
 
-    qDebug() << "updateCell: update row" << query.lastQuery();
+    //qDebug() << "updateCell: update row" << query.lastQuery();
 }
 
 bool Database::databaseExists()
@@ -551,18 +666,20 @@ bool Database::databaseExists()
 
 void Database::openDatabase()
 {
-    //qDebug() << "openDatabase" << m_path << m_database.isValid();
-
-    // This doesn't seem to want to work. I get "multiple connections"
-    // errors even when checking for existing connections.
+   // qDebug() << "openDatabase" << m_path << m_database.isValid() << this;
+    QLatin1String databaseConnectionNanme("builbot-sqlite");
     if (m_database.isValid() == false) {
-        if (QSqlDatabase::connectionNames().contains("QSQLITE"))
-            m_database = QSqlDatabase::database("QSQLITE");
+        if (QSqlDatabase::connectionNames().contains(databaseConnectionNanme))
+            m_database = QSqlDatabase::database(databaseConnectionNanme);
         else
-            m_database = QSqlDatabase::addDatabase("QSQLITE");
+            m_database = QSqlDatabase::addDatabase("QSQLITE", databaseConnectionNanme);
     }
 
     //qDebug() << "openDatabase isValid" << m_database.isValid();
+    if (m_database.isValid() == false) {
+        Log::addError("Could not create SQLITE database connection. Missing driver?");
+        exit(0);
+    }
 
     if (m_database.isOpen())
         return;
@@ -576,7 +693,7 @@ void Database::openDatabase()
 
 void Database::connectToDatabase()
 {
-    qDebug() << "connectToDatabase";
+   // qDebug() << "connectToDatabase" << m_path;
     m_database.setDatabaseName(m_path);
     bool ok = m_database.open();
     if (!ok)
@@ -587,7 +704,7 @@ void Database::connectToDatabase()
 
 void Database::createNewDatabase()
 {
-    qDebug() << "createNewDatabase" << m_path;
+    // qDebug() << "createNewDatabase" << m_path;
     m_database.setDatabaseName(m_path);
 
     QDir().mkpath(QFileInfo(m_path).absolutePath());
@@ -615,6 +732,38 @@ void Database::deleteDatabase()
 {
     m_database.close();
     QFile::remove(m_path);
+}
+
+// Creates a temp table with the schema from the source table
+QString Database::createTempTable(const QString &sourceTableName)
+{
+    QString tempTableName = "temptable" + QString::number(m_tempTableIndex++);
+    QString schema = this->schema(sourceTableName);
+    execQuery("CREATE TEMP TABLE " + tempTableName + " " + schema, true);
+    return tempTableName;
+}
+
+void Database::destroyTempTable(const QString &tableName)
+{
+    if (tableName.startsWith("temptable") == false) {
+        Log::addInfo("Database::destroyTempTable called with non-temp table");
+        return;
+    }
+
+    QString queryString("DROP TABLE " + tableName);
+    execQuery(queryString, true);
+}
+
+// Creates a temp table with the contents from the source table
+// The contents are filtered by filterQuery, which can be of the
+// form "WHERE Foo='bar'" or "ORDER BY Foo LIMIT 400" for example.
+QString Database::filterTable(const QString &sourceTableName, const QString &filterQuery)
+{
+    QString newTableName = createTempTable(sourceTableName);
+    QString queryQString = QString("INSERT INTO %1 SELECT * FROM %2 %3")
+                         .arg(newTableName).arg(sourceTableName).arg(filterQuery);
+    execQuery(queryQString, true);
+    return newTableName;
 }
 
 void Database::execQuery(QSqlQuery query, bool warnOnFail)

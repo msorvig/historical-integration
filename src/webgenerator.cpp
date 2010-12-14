@@ -1,5 +1,6 @@
 #include "webgenerator.h"
 #include "reports.h"
+#include "log.h"
 
 /*  The WebGenerator instanciates html templates and is mostly
     used to mix in the required Javascript modules. WebGenerator
@@ -10,10 +11,10 @@
     is replaced with a script declaring a variable containing
     the provided json data. (see the ::instantiate* functions.)
 
-    Two instantiation modes are supported:
+    Three instantiation modes are supported:
 
     - instantiateSelfContained: Creates a self-contained html
-    file that includes the json data and javascript modules.
+    file that includes the json data and inlined javascript modules.
     Note that the template file and javascript modules are
     loaded from resources (prefix :html/), which makes the
     instantiation process itself self-contained.
@@ -23,8 +24,11 @@
     by the web browser). This mode is useful for javascript
     development, since you can edit&refresh directly and skip the
     instantiation process.
-*/
 
+    -[TODO] instantiateStandAlone: Creates a stand-alone html
+    file that loads JOSN asynchronously from a server. Javascript
+    modules are linked in.
+*/
 
 WebGenerator::WebGenerator()
 {
@@ -34,18 +38,49 @@ WebGenerator::WebGenerator()
 QByteArray WebGenerator::instantiateSelfContained(const QString &templateFileName,
                                                   const QByteArray &jsonData)
 {
-    QByteArray html = readFile(":html/" + templateFileName);
+    QString resourceFileName = ":html/" + templateFileName;
+
+    QByteArray html = readFile(resourceFileName);
     return performReplacements(html, jsonData, QString(), SelfContained);
 }
 
+
+#define STRING1(arg) #arg
+#define STRING(arg) STRING1(arg)
 QByteArray WebGenerator::instantiateSelfContainedDev(const QString &templateFileName,
-                                                     const QByteArray &jsonData,
-                                                     const QString &pathToSrc)
+                                                     const QByteArray &jsonData)
 {
-    QByteArray html = readFile(pathToSrc + "/" + templateFileName);
+    QByteArray html;
+    const QString templateInCurrentDirectory = QDir::currentPath() + "/" + templateFileName;
+
+    const QString pathToSrc = STRING(SRCPATH); // from buildbot.pri
+
+    qDebug() << "testing" << templateInCurrentDirectory;
+
+    if (QFile::exists(templateInCurrentDirectory)) {
+        html = readFile(templateInCurrentDirectory);
+    } else {
+        html = readFile(pathToSrc + "/" + templateFileName);
+    }
+
+    if (html.isEmpty()) {
+        Log::addError(QString("WebGenerator::instantiateSelfContainedDev: "
+                               "no file found for" + templateFileName));
+        exit(0);
+    }
+
+
     return performReplacements(html, jsonData, pathToSrc, SelfContainedDev);
 }
 
+// find tags (which looks like [[Tag]]), replace "Tag"
+// with content. Depending on the mode, the inserted
+// content can either be a link to a js/css file, or
+// the file contents instead.
+//
+// [[JsonData]] is a special tag and gets replaced with
+// the content of jsonData.
+//
 QByteArray WebGenerator::performReplacements(const QByteArray &html, const QByteArray &jsonData,
                                              const QString &pathToSrc, Mode mode)
 {
@@ -59,19 +94,32 @@ QByteArray WebGenerator::performReplacements(const QByteArray &html, const QByte
         if (length <=4)
             break;
 
-
         QByteArray tag = out.mid(offset, length);
         QByteArray name = tag.right(tag.length() -2).toLower();
         name.chop(2);
 
-        qDebug() << "tag offset"<< offset << "lenth" << length << tag;
+//         qDebug() << "tag offset"<< offset << "lenth" << length << tag;
         QByteArray replacement;
         if (tag == "[[JsonData]]") {
             replacement = "<script type='text/javascript'> var jsonData = " + jsonData + "</script>";
         } else if (mode == SelfContained) {
-            replacement = "<script type='text/javascript'> " + readFile(":html/" + tag + ".js") + "</script>";
+            if (name.endsWith("js")) {
+                replacement = "<script type='text/javascript'> "
+                            + readFile(":html/" + name) + "</script>";
+            } else {
+                replacement = "<link rel='stylesheet' type='text/css' href= '"
+                            + readFile(":html/" + name) + "'/>";
+            }
         } else if (mode == SelfContainedDev) {
-            replacement = "<script type='text/javascript' src ='" + pathToSrc.toLocal8Bit() + "/" + name + ".js'></script>";
+            if (name.endsWith("js")) {
+                replacement = "<script type='text/javascript' src ='"
+                            + QDir::cleanPath(pathToSrc).toLocal8Bit()
+                            + "/" + name + "'></script>";
+            } else {
+                replacement = "<link rel='stylesheet' type='text/css' href= '"
+                            + QDir::cleanPath(pathToSrc).toLocal8Bit()
+                            + "/" + name + "'/>";
+            }
         }
 
         out.replace(offset, length, replacement);

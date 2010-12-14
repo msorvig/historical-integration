@@ -1,9 +1,10 @@
-#include <QtCore/QCoreApplication>
+#include <QtCore>
 #include <QTest>
 
 #include <testrunner.h>
 #include <testmanager.h>
 #include <persistentqueue.h>
+#include <database.h>
 
 int main(int argc, char *argv[])
 {
@@ -13,13 +14,18 @@ int main(int argc, char *argv[])
 
     QStringList arguments = a.arguments();
 
-    PersistentQueue queue("tests", QDir::currentPath() + "/db.sqlite");
+    Database benchmarkDatabase(QDir::currentPath() + "/results.sqlite");
+    BenchmarkTable runtimeResults(&benchmarkDatabase, "testFunctionRuntime");
+
+    PersistentQueue queue("tests", QDir::currentPath() + "/queue.sqlite");
 
     if (arguments.contains("init")) {
         qDebug() << "init";
         TestManager manager(qtPath);
         QStringList tests = manager.tests();
-
+    
+        qDebug() << "tests" << tests.at(0);
+                
         queue.clear();
         queue.enqueue(tests);
     }
@@ -31,19 +37,30 @@ int main(int argc, char *argv[])
             TestRunner runner(test, qtPath);
             qDebug() << "";
             qDebug() << "Test" << test;
-            qDebug() << runner.testFunctions();
-            QStringList testFunctions = runner.testFunctions();
+
+            QString testName = QDir(test).dirName();
+
+            runtimeResults.setDimention("TestCase", testName);
 
             PersistentQueue testFunctionsQueue("tests" + test , QDir::currentPath() + "/db.sqlite");
+            if (testFunctionsQueue.isEmpty()) {
+                qDebug() << "init";
+                QStringList testFunctions = runner.testFunctions();
+                testFunctionsQueue.enqueue(testFunctions);
+            }
 
+            QString testFunction = testFunctionsQueue.checkout();
+            while (testFunction.isEmpty() == false) {
+                qDebug() << "testFunction" << test << ":" << testFunction;
+                runtimeResults.setDimention("TestFunction", testFunction);
 
+                int runtime = runner.runTestFunction(testFunction).runTime;
+                qDebug() << "runtime" << runtime;
+                runtimeResults.setValue("Runtime", runtime);
 
-
-            //runner.runAllTestFunctions();
-
-
-            //QTest::qWait(100);
-
+                testFunctionsQueue.complete(testFunction);
+                testFunction = testFunctionsQueue.checkout();
+            }
 
             queue.complete(test);
             test = queue.checkout();

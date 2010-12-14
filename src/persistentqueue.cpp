@@ -4,13 +4,18 @@
 PersistentQueue::PersistentQueue(const QString &name, const QString &databasePath)
 {
     m_database = new Database(databasePath);
-    m_tableName = "PersistentQueue" + name;
+    m_tableName = Database::scrub("PersistentQueue" + name);
     createTable();
+}
+
+PersistentQueue::~PersistentQueue()
+{
+    delete m_database;
 }
 
 void PersistentQueue::clear()
 {
-    m_database->execQuery("DROP TABLE " + m_database->scrub(m_tableName), true);
+    m_database->execQuery("DROP TABLE " + m_tableName, true);
 
 
     createTable();
@@ -59,7 +64,7 @@ QString PersistentQueue::checkout()
     QMutexLocker lock(&m_queueMutex);
     QSqlQuery query =
         m_database->execQuery(QString("SELECT QueueOrder, Name FROM %1 ORDER BY QueueOrder ASC")
-                              .arg(Database::scrub(m_tableName)), true);
+                              .arg(m_tableName), true);
     //qDebug() << "PersistentQueue::checkout";
     while (query.next()) {
     //    qDebug() << "next";

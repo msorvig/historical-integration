@@ -52,8 +52,11 @@ TableController = function (params) {
             $(arrays).each(function(index, value){
                 // console.log(this + index + value);
                 var row = $("<tr>");
-                    if (verticalHeaders !== undefined)
-                        $(row).createTableCellsWithArray([s[index]], "th")
+                    if (verticalHeaders !== undefined) {
+                         $(row).createTableCellsWithArray([verticalHeaders[index]], "th")
+                        //$(row).createTableCellsWithArray(["eh"], "th")
+
+                    }
                     $(row).createTableCellsWithArray(value, "td")
                 $(row).append("</tr>");
                 $(tbody).append(row);
@@ -76,8 +79,8 @@ TableController = function (params) {
         var table = $("<table>");
             var thead = $("<thead>")
                 var row = $("<tr>")
-                if (data.verticalHeader !== undefined && data.verticalHeader.length >  0)
-                    data.horizontalHeader.unshift(" ");
+                //if (data.verticalHeader !== undefined && data.verticalHeader.length >  0)
+                 //   data.horizontalHeader.unshift(" ");
                 $(row).createTableCellsWithArray(data.horizontalHeader, "th");
                 $(row).append("</tr>");
             $(thead).append(row);
@@ -112,10 +115,31 @@ TableController = function (params) {
 
      function interpretTableDataAsGrid(jsonData)
     {
+        var horizontalHeader = jsonData.columnValues[0].slice(0);
+        horizontalHeader.unshift(jsonData.columnNames[1]);
+        // console.log("horizontal header " + horizontalHeader);
+
+        var verticalHeader = jsonData.columnValues[1];
+        // console.log("vertical header " + verticalHeader);
+
+        // iterate over the database rows, generate table rows.
+        var tableRows = []
+            $(jsonData.dataTable).each(function(index, row) {
+                var tableRowIndex = row[1];
+                var tableColumnIndex = row[0];
+                var value = jsonData.columnValues[2][row[2]];
+                //console.log("row " + row);
+
+                if (tableRows[tableRowIndex] === undefined)
+                    tableRows[tableRowIndex] = [];
+                tableRows[tableRowIndex][tableColumnIndex] = value;
+
+            });
+
         var tableData = {
-                "horizontalHeader" : jsonData.indexColumns,
-                "verticalHeader" : undefined,
-                "data" : [[1, "sdfsafsafsdfdsfsdf"], [3,4]]
+                "horizontalHeader" :horizontalHeader,
+                "verticalHeader" : verticalHeader,
+                "data" : tableRows
                 }
 
            return tableData;

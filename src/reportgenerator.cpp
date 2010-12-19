@@ -20,7 +20,7 @@ void ReportGenerator::generateReport(const QString &reportRootDirectory)
 #else
     QByteArray report = webGenerator.instantiateSelfContained("report.html", json);
 #endif
-    writeFile(m_rootTableName + ".html", report);
+    writeFile(m_rootTableName.toLower() + ".html", report);
 }
 
 QByteArray ReportGenerator::generateJson(const QString &tableName)

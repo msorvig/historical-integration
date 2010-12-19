@@ -2,7 +2,9 @@
 #define JSONGENERATOR_H
 
 #include <QtCore>
-#include "Database.h"
+#include "database.h"
+#include "benchmarkertable.h"
+#include "attributedtable.h"
 #include "json.h"
 
 class JsonGenerator
@@ -12,7 +14,8 @@ public:
     // "flat" json
     QByteArray generateFlatJson(const QString &tableName);
     QByteArray generateFlatJson(BenchmarkTable *benchmarkTable);
-    QByteArray generateFlatJson(const QString &tableName, const QStringList &hiearchyDimentions);
+    QByteArray generateFlatJson(AttributedTable *attributedTable);
+    QByteArray generateFlatJson(const QString &tableName, const QStringList &columnNames);
 private:
     QList<QVariant> lookupDistinctColumnValues(const QString &columnName);
 

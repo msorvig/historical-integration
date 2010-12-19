@@ -2,8 +2,8 @@
 #define BENCHMARKDIMENTION_H
 
 #include <database.h>
+#include <benchmarkertable.h>
 #include <QtCore>
-
 
 /*
     A BenchmarkDimention object stores a dimention in a database table.

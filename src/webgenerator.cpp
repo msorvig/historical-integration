@@ -76,10 +76,10 @@ QByteArray WebGenerator::instantiateSelfContainedDev(const QString &templateFile
 // find tags (which looks like [[Tag]]), replace "Tag"
 // with content. Depending on the mode, the inserted
 // content can either be a link to a js/css file, or
-// the file contents instead.
+// the file content itself.
 //
 // [[JsonData]] is a special tag and gets replaced with
-// the content of jsonData.
+// the content of the passed jsonData byte array.
 //
 QByteArray WebGenerator::performReplacements(const QByteArray &html, const QByteArray &jsonData,
                                              const QString &pathToSrc, Mode mode)

@@ -1,5 +1,6 @@
 #include "jsongenerator.h"
 #include "database.h"
+#include "benchmarkertable.h"
 #include <json.h>
 
 uint qHash(const QVariant &variant)
@@ -124,8 +125,20 @@ JsonGenerator::JsonGenerator(Database *database)
 
 QByteArray JsonGenerator::generateFlatJson(const QString &tableName)
 {
-    BenchmarkTable table(m_database, tableName);
-    return generateFlatJson(&table);
+    AttributedTable attributedTable(m_database, tableName);
+    return generateFlatJson(&attributedTable);
+}
+
+QByteArray JsonGenerator::generateFlatJson(AttributedTable *attributedTable)
+{
+    QByteArray data = generateFlatJson(attributedTable->tableName(),
+                                       attributedTable->columnNames());
+
+    QByteArray attributes = generateFlatJson(attributedTable->attributeTableName(),
+                                             QStringList() << "Key" << "Value");
+
+    return QString("{ \"data\" : %1 , \"attributes\" : %2 }")
+           .arg(QString(data)).arg(QString(attributes)).toUtf8();
 }
 
 QByteArray JsonGenerator::generateFlatJson(BenchmarkTable *benchmarkTable)
@@ -145,30 +158,28 @@ QByteArray JsonGenerator::generateFlatJson(BenchmarkTable *benchmarkTable)
            .arg(QString(data)).arg(QString(attributes)).toUtf8();
 }
 
-QByteArray JsonGenerator::generateFlatJson(const QString &tableName, const QStringList &indexDimentions)
+QByteArray JsonGenerator::generateFlatJson(const QString &tableName, const QStringList &columnNames)
 {
     //
     // Format Example:
     //
-    // indexColumns : [A, B]
-    // dataColumns : [C]
-    // indexValues : [[a1, a2], [b1, b2]]
-    // data : [
-    //         [ 1, 1, data1-a1-b1],
-    //         [ 1, 2, data1-a1-b2] ,
+    // columnNames : [A, B, C]
+    // columnValues : [[a1, a2], [b1, b2], [c1, c2]]
+    // dataTable : [
+    //         [ 1, 1, 1],
+    //         [ 1, 2, 2],
     //       ]
     //
 
     m_tableName = tableName;
     m_columnValues.clear();
 
-    QStringList columnNames = indexDimentions;
-
     // For each coloumn, find and index all possible values.
     QList<QHash<QVariant, int> > indexedValuesList;
     QList<QList<QVariant> > valuesList;
     foreach (const QString &columnName, columnNames) {
         const QList<QVariant> values = lookupDistinctColumnValues(columnName);
+
         valuesList.append(values);
 
         QHash<QVariant, int> indexedValues;

@@ -4,7 +4,7 @@
 #include <QtCore>
 
 struct ProcessResult{
-    ProcessResult() {}
+    ProcessResult() : success(true) {}
     ProcessResult(bool success, QByteArray output)
         : success(success), output(output) {}
     bool success;

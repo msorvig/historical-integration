@@ -2,6 +2,7 @@
 #define BENCHMARKEVENT_H
 
 #include <database.h>
+#include <benchmarkertable.h>
 #include <QtCore>
 
 class BenchmarkEvent

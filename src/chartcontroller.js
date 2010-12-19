@@ -33,6 +33,10 @@ ChartController = function(params) {
     {
         // convert the column/row-based in-data to an
         // array of x-y arrays. [[x1,y1],[x2,y2], etc]
+        //
+        // Also converts the x axis from seconds-since-1970
+        // to milliseconds-since-1970 if the timeChart attribute
+        // is set.
         var seriesArray = [];
         var seriesDimention = selectSeriesDimention(data);
         var xDimention = selectXdimention(data);
@@ -43,6 +47,8 @@ ChartController = function(params) {
                if (seriesArray[seriesIndex] === undefined)
                    seriesArray[seriesIndex] = [];
                var xValue = data.columnValues[xDimention][value[xDimention]];
+               if (attributes["timeChart"] == "true")
+                    xValue*= 1000;
                var yValue = data.columnValues[resultDimention][value[resultDimention]];
                seriesArray[seriesIndex].push([xValue, yValue]);
          });
@@ -110,9 +116,7 @@ ChartController = function(params) {
             step = roundValue(range / (tickCount - 1), unit);
             tickCount += 1;
         } else {
-            // if the tick count is specified:
-            // adjust the step size to overshoot the data range.
-            step = roundedRange / (tickCount - 2);
+              step = roundedRange / (tickCount - 1);
         }
 
         // Generate tick mark value, label pairs
@@ -132,37 +136,41 @@ ChartController = function(params) {
        var seriesDimention = selectSeriesDimention(data);
        var series = []
        $(data.columnValues[seriesDimention]).each(function(index, value) {
-           series.push({ label: value });
+           series.push({ label: value,
+                         "showMarker" : attributes["chartMarkers"] == "true"
+                     });
        });
        return series;
    }
    function create(container) {
        $.jqplot.config.enablePlugins = true;
+       var isTimeChart = (attributes["timeChart"] == "true");
 
        plot1 = $.jqplot(container.attr("id"), dataArray, {
-           title: attributes["BenchmarkTitle"],
+           title: attributes["Title"],
            legend: {
                show:true,
                renderer:$.jqplot.EnhancedLegendRenderer
            },
            series: convertSeries(data),
-           highlighter: { bringSeriesToFront: true },
+           Highlighter: { show: true },
 
            cursor: {showTooltip:false, zoom:true, clickReset:true},
 
            axes: {
                yaxis: {
-                   label : attributes["ResultTitle"],
+                   label : dataParser.indexDimentionTitle(selectResultDimention()),
                    labelRenderer: $.jqplot.CanvasAxisLabelRenderer,
-                   ticks : createTickMarks(dataArray, 1, 6, true)
+                   ticks : createTickMarks(dataArray, 1, 6, true),
+                   min: 0
                },
                xaxis: {
                    autoscale : true,
                    label : dataParser.indexDimentionTitle(selectXdimention()),
-                   // renderer: $.jqplot.DateAxisRenderer,
-                   //tickOptions : { formatString : "" },
+                   renderer: isTimeChart ? $.jqplot.DateAxisRenderer : undefined,
+                   tickOptions : isTimeChart ? { formatString : " %B %Y" } : undefined,
                    labelRenderer: $.jqplot.CanvasAxisLabelRenderer,
-                   ticks : createTickMarks(dataArray, 0, -1, false)
+                   ticks : isTimeChart ? undefined :createTickMarks(dataArray, 0, -1, false)
               }
            }
 

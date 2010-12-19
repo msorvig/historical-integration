@@ -7,6 +7,8 @@ JsonDataParser = function (params) { // ### bad name
     function parseAttributes(attributesData)
     {
         var parsedAttributes = {};
+        if (attributesData === undefined)
+            return parseAttributes;
         $(attributesData.dataTable).each(function(index, row) {
             // console.log(index + " " + row);
             var key = attributesData.columnValues[0][row[0]];
@@ -25,8 +27,8 @@ JsonDataParser = function (params) { // ### bad name
 
     function indexDimentionTitle(index)
     {
-        console.log("DimentionTitle" + data.columnNames[index]);
-        return parsedAttributes["DimentionTitle" + data.columnNames[index]];
+        console.log(data.columnNames[index] + "Title");
+        return parsedAttributes[data.columnNames[index] + "Title"];
     }
 
     function attributes()

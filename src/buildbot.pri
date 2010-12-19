@@ -41,7 +41,10 @@ SOURCES += $$PWD/buildbot.cpp \
     persistentqueue.cpp \
     ../../src/benchmarkdimention.cpp \
     ../../src/benchmarkevent.cpp \
-    ../../src/reportgenerator.cpp
+    ../../src/reportgenerator.cpp \
+    ../../src/attributedtable.cpp \
+    ../../src/benchmarkertable.cpp \
+    ../../src/timegroupcounter.cpp
 HEADERS += $$PWD/buildbot.h \
     $$PWD/taskmanager.h \
     visitor.h \
@@ -77,7 +80,10 @@ HEADERS += $$PWD/buildbot.h \
     persistentqueue.h \
     ../../src/benchmarkdimention.h \
     ../../src/benchmarkevent.h \
-    ../../src/reportgenerator.h
+    ../../src/reportgenerator.h \
+    ../../src/attributedtable.h \
+    ../../src/benchmarkertable.h \
+    ../../src/timegroupcounter.h
 CONFIG += console
 OBJECTS_DIR = .obj
 MOC_DIR = .moc

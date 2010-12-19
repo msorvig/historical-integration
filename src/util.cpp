@@ -3,10 +3,14 @@
 ProcessResult pipeExecutable(const QString &workdir, const QString &executable, const QStringList &arguments)
 {
     QProcess p;
+    //qDebug() << "path" << workdir << "args" << arguments;
+
     p.setProcessChannelMode(QProcess::MergedChannels);
+    //p.setReadChannel(QProcess::StandardOutput);
     if (workdir != QString())
         p.setWorkingDirectory(workdir);
     p.start(executable, arguments);
+    p.waitForStarted();
     if (p.waitForFinished(-1) == false) {
         qDebug() << "run" << executable << "failed" << p.error() << p.errorString()
         << "workdir" <<  workdir << "arguments" << arguments;

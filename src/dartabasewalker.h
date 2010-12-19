@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include "database.h"
+#include "benchmarkertable.h"
 
 /*
     DatabaseWalker walks the "data tree" defined by the

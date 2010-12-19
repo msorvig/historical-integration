@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include "database.h"
-//#include "benchmarktable.h"
+#include "benchmarkertable.h"
 
 class BenchmarkerTestlibIntegration : public QObject
 {

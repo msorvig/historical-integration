@@ -151,10 +151,23 @@ QStringList GitClient::revisions()
                     m_revisions += revision;
             }
         } else {
-            qDebug() << result.output;
+            qDebug() << "GitClient::revisions failed to run git";
         }
     }
     return m_revisions;
+}
+
+QStringList GitClient::runCommand(const QStringList &arguments)
+{
+    QStringList actualArguments = arguments;
+    actualArguments.prepend("--no-pager");
+
+    QStringList output;
+    ProcessResult result = pipeExecutable(m_projectPath, findGit(), actualArguments);
+    foreach (QByteArray line, result.output.split('\n')) {
+       output.append(line);
+    }
+    return output;
 }
 
 QString GitClient::currentRevision()

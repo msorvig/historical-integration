@@ -83,12 +83,12 @@ double Benchmarker::checkPointSetResult()
 
 void Benchmarker::setBenchmarkTitle(const QString &title)
 {
-    m_resultsTable->setAttribute("BenchmarkTitle", title);
+    m_resultsTable->setAttribute("Title", title);
 }
 
 void Benchmarker::setDimentionTitle(const QString &dimentionName, const QString &title)
 {
-    m_resultsTable->setAttribute("DimentionTitle" + dimentionName, title);
+    m_resultsTable->setAttribute(dimentionName + "Title", title);
 }
 
 void Benchmarker::setResultTitle(const QString &title)

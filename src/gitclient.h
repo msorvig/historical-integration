@@ -28,10 +28,12 @@ public:
     ProcessResult syncBack(int revisions);
     ProcessResult checkout(const QString &branch);
     QStringList revisions();
+    QStringList runCommand(const QStringList &commands);
     QString currentRevision();
     ProcessResult syncToRevision(const QString &revision);
     QString projectPath() { return m_projectPath; }
     void setMockRevisionSync(bool enable);
+
 //private:
     QString m_sourceUrl;
 

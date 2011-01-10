@@ -9,8 +9,8 @@ class ReportGenerator
 public:
     ReportGenerator(Database *database, const QString &rootTableName);
 
-
-    void generateReport(const QString &reportRootDirectory);
+    enum ReportMode { SelfContained, SelfContainedDev };
+    void generateReport(const QString &reportRootDirectory, ReportMode mode = SelfContained );
 
 private:
     QByteArray generateJson(const QString &tableName);

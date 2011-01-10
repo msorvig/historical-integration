@@ -499,6 +499,8 @@ void Database::openDatabase()
 {
    // qDebug() << "openDatabase" << m_path << m_database.isValid() << this;
     QLatin1String databaseConnectionNanme("builbot-sqlite");
+
+
     if (m_database.isValid() == false) {
         if (QSqlDatabase::connectionNames().contains(databaseConnectionNanme))
             m_database = QSqlDatabase::database(databaseConnectionNanme);

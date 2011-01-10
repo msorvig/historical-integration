@@ -3,68 +3,74 @@
 TimeGroupCounter::TimeGroupCounter(Database *database)
 {
     m_database = database;
-
 }
 
-AttributedTable TimeGroupCounter::count(AttributedTable table, const QString &groupColumn,
-                                        const QString &timeColumn, Interval interval, const QString &returnTableName)
+void TimeGroupCounter::skipColumn(const QString &columnName)
 {
-    uint minTime =
-            m_database->selectVariant(QString("SELECT %1 FROM %2 ORDER BY Time ASC")
-                                      .arg(timeColumn).arg(table.tableName())).toUInt();
-    uint maxTime =
-            m_database->selectVariant(QString("SELECT %1 FROM %2 ORDER BY Time DESC")
-                                    .arg(timeColumn).arg(table.tableName())).toUInt();
+    m_skipColumns.append(columnName);
+}
 
-    // Make sure we goup and count complete intervals only.
-    uint intervalMinTime;
-    if (interval == Week) {
-        // Advance to minTime to the beginning of the first monday in the minTime, maxTime range
-        QDateTime minDate(QDateTime::fromTime_t(minTime).date());
-        QDateTime completeIntervalMinDate = minDate.addDays(7 - (minDate.date().dayOfWeek() - 1));
-        if (completeIntervalMinDate.date().dayOfWeek() != 1)
-            qDebug() << "Error: << TimeGroupCounter::count did not adwance to a monday" << completeIntervalMinDate;
-        intervalMinTime = completeIntervalMinDate.toTime_t();
-    } else if (interval == Day) {
-        qDebug() << "Error: << TimeGroupCounter::count TODO";
-    } else {
-        qDebug() << "Error: << TimeGroupCounter::count TODO";
+AttributedTable TimeGroupCounter::aggregate(AttributedTable table)
+{
+    // qDebug() << "TimeGroupCounter::aggregate";
 
-    }
-//    qDebug() << "minTime" << minTime << intervalMinTime;
+    QStringList resultTableColumnNames;
+    QStringList resultTableColumnTypes;
+    QString selectQuery = "SELECT ";
+    QString queryGroupBy;
+    QString querySelectColumns;
+    QString queryAggregateColumns;
 
-    // Create return table and count the number of rows for each time interval.
-    // Group by groupColumn.
+    const QStringList columnNames = table.columnNames();
+    // qDebug() << "columns" << columnNames;
+    foreach(const QString &columnName, columnNames) {
+        if (m_skipColumns.contains(columnName))
+            continue;
+        QString role = table.attribute(columnName + "Role");
+        // qDebug() << "column" << column << "role" << role;
 
-    AttributedTable counterTable(m_database, returnTableName);
-    counterTable.setTableScema(QStringList() << groupColumn << timeColumn << "Count",
-                             QStringList() << "VARCHAR" << "INTEGER" << "INTEGER");
+        if (role == "Index") {
+            resultTableColumnNames += columnName;
+            resultTableColumnTypes += "VARCHAR"; // ### column type
+            queryGroupBy += (columnName + ", ");
+            querySelectColumns += (" " + columnName + ", ");
+        } else if (role == "TimeIndex") {
+            resultTableColumnNames += columnName;
+            resultTableColumnTypes += "INTEGER";
+            queryGroupBy += QString("strftime('%W-%Y', %1, 'unixepoch'), ").arg(columnName);
+            querySelectColumns += (columnName + ", ");
+        } else if (role == "Data") {
+            resultTableColumnNames += columnName + "Sum";
+            resultTableColumnTypes += "INTEGER";
+            querySelectColumns += QString(" total(%1) AS %2, ").arg(columnName).arg(columnName + "Sum");
 
-    m_database->transaction();
-
-    foreach (const QString group, m_database->selectDistinct(groupColumn, table.tableName())) {
-        qDebug() << "group" << group;
-        uint intervalTime = intervalMinTime;
-        while (intervalTime + interval < maxTime) {
-            QVariant count =
-                    table.select("SELECT COUNT(*)FROM %table% WHERE TIME > ? AND TIME < ? AND Branch = ?"
-                    , QVariantList() << intervalTime << intervalTime + interval << group);
-
-//            qDebug () << "count for" << intervalTime <<
-//                    QDateTime::fromTime_t(intervalTime).date()
-//                    << "to" << QDateTime::fromTime_t(intervalTime + interval).date()
-//                    << count;
-            m_database->insertRow(returnTableName, QStringList() << groupColumn << timeColumn << "Count",
-                                                 QList<QVariant>() << group << intervalTime << count);
-
-
-            intervalTime += interval;
+            resultTableColumnNames += columnName + "Average";
+            resultTableColumnTypes += "INTEGER";
+            querySelectColumns += QString(" avg(%1) AS %2, ").arg(columnName).arg(columnName + "Avg");
         }
     }
 
-    m_database->commit();
+    querySelectColumns += " count(*) AS Count";
+    resultTableColumnNames += "Count";
+    resultTableColumnTypes += "INTEGER";
 
+    queryGroupBy.chop(2); // remove last ", "
+
+    selectQuery += (" " + querySelectColumns + "\n");
+    selectQuery += (" " + queryAggregateColumns + "\n");
+    selectQuery += QString(" FROM %1").arg(table.tableName() + "\n");
+    selectQuery += (" GROUP BY " + queryGroupBy);
+
+    //qDebug() << "query" << selectQuery;
+    //qDebug() << "result table column names" << resultTableColumnNames;
+    //qDebug() << "result table column types" << resultTableColumnTypes;
+
+    // create new table
+    AttributedTable counterTable(m_database, table.tableName() + "Aggregate");
+    counterTable.setTableScema(resultTableColumnNames, resultTableColumnTypes);
+
+    QString insertQuery(QString("INSERT INTO %1 ").arg(counterTable.tableName()) + selectQuery);
+    m_database->execQuery(insertQuery, true);
     return counterTable;
-
 }
 

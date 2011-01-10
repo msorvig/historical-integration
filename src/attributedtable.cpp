@@ -15,6 +15,12 @@ AttributedTable::AttributedTable(Database *database, const QString &tableName)
     }
 }
 
+AttributedTable AttributedTable::cloneSchema()
+{
+    AttributedTable clone(m_database, m_database->createTempTable(m_tableName));
+    return clone;
+}
+
 void AttributedTable::setTableScema(const QStringList &columnNames, const QStringList &columnTypes)
 {
     m_database->updateTableSchema(m_tableName, columnNames, columnTypes);
@@ -25,6 +31,21 @@ void AttributedTable::setAttribute(const QString &key, const QString &value)
     m_database->insertRow(m_attributeTableName,
                           QStringList() << "Key" << "Value",
                           QList<QVariant>() << key << value);
+}
+
+QString AttributedTable::attribute(const QString &key)
+{
+    return m_database->select(
+            QString("SELECT Value FROM %1 WHERE Key=?")
+            .arg(m_attributeTableName), QVariantList() << key)
+                .toString();
+}
+
+void AttributedTable::setColumnRoleAttributes(const QStringList &columnNames, const QStringList &columnRoles)
+{
+    for (int i = 0; i < columnNames.count(); ++i) {
+        setAttribute(columnNames.at(i) + "Role", columnRoles.at(i));
+    }
 }
 
 QVariantList AttributedTable::selectList(const QString &query, const QVariantList &values)

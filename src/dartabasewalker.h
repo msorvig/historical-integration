@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include "database.h"
+#include "attributedtable.h"
 #include "benchmarkertable.h"
 
 /*
@@ -14,6 +15,7 @@ class DatabaseWalker : public QObject
 public:
     DatabaseWalker(Database *database);
 
+    void setup(AttributedTable *attributedTable);
     void setup(BenchmarkTable *rootBenchmarkTable);
     bool next();
 

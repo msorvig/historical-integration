@@ -165,7 +165,8 @@ QStringList GitClient::runCommand(const QStringList &arguments)
     QStringList output;
     ProcessResult result = pipeExecutable(m_projectPath, findGit(), actualArguments);
     foreach (QByteArray line, result.output.split('\n')) {
-       output.append(line);
+        if (line.simplified().isEmpty() == false)
+            output.append(line);
     }
     return output;
 }

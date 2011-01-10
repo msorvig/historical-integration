@@ -26,8 +26,8 @@ public:
     QString createWhereClause(const QStringList &whereColumns);
     void bindWhereValues(QSqlQuery * query, const QStringList &whereValues);
 
-    QVariant select(const QString &queryString, const QVariantList &values);
-    QVariantList selectList(const QString &queryString, const QVariantList &values);
+    QVariant select(const QString &queryString, const QVariantList &values = QVariantList());
+    QVariantList selectList(const QString &queryString, const QVariantList &values = QVariantList());
 
     QString selectString(const QString &queryString);
     QVariant selectVariant(const QString &queryString);

@@ -22,6 +22,11 @@ void DatabaseWalker::printWalk(BenchmarkTable *benchmarkTable)
     qDebug() << "End Walk";
 }
 
+void DatabaseWalker::setup(AttributedTable *attributedTable)
+{
+
+}
+
 void DatabaseWalker::setup(BenchmarkTable *benchmarkTable)
 {
     m_rootTable = benchmarkTable;

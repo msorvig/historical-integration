@@ -8,14 +8,15 @@
 class TimeGroupCounter
 {
 public:
-    enum Interval { Day = 86400,
-                    Week = Day * 7,
-                    ProgrammersMonth = Day * 30 };
+    enum Interval { Day, Week, Month };
+
     TimeGroupCounter(Database *database);
-    AttributedTable count(AttributedTable table, const QString &groupColumn,
-                          const QString &timeColumn, Interval interval, const QString &returnTableName);
+    void skipColumn(const QString &columnName);
+
+    AttributedTable aggregate(AttributedTable table);
 private:
     Database *m_database;
+    QString m_skipColumns;
 };
 
 #endif // TIMEGROUPCOUNTER_H

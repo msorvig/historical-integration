@@ -8,7 +8,7 @@ ReportGenerator::ReportGenerator(Database *database, const QString &rootTableNam
     m_rootTableName = rootTableName;
 }
 
-void ReportGenerator::generateReport(const QString &reportRootDirectory)
+void ReportGenerator::generateReport(const QString &reportRootDirectory, ReportMode reportMode)
 {
     m_reportRootDirectory = reportRootDirectory;
 
@@ -16,10 +16,14 @@ void ReportGenerator::generateReport(const QString &reportRootDirectory)
 
     WebGenerator webGenerator;
 #ifdef BENCHMARKER_DEV_MODE
-    QByteArray report = webGenerator.instantiateSelfContainedDev("report.html", json);
-#else
-    QByteArray report = webGenerator.instantiateSelfContained("report.html", json);
+    reportMode = SelfContainedDev;
 #endif
+    QByteArray report;
+    if (reportMode == SelfContainedDev)
+        report = webGenerator.instantiateSelfContainedDev("report.html", json);
+    else
+        report = webGenerator.instantiateSelfContained("report.html", json);
+
     writeFile(m_rootTableName.toLower() + ".html", report);
 }
 
